@@ -10,6 +10,7 @@ OpenAPI docs, and a role-based permission layer (see apps/accounts/permissions.p
 import os
 from datetime import timedelta
 from pathlib import Path
+from datetime import timedelta
 
 from dotenv import load_dotenv
 
@@ -38,8 +39,37 @@ INSTALLED_APPS = [
     "django_celery_beat",
     "drf_spectacular",
     # Local apps
-    # "apps.accounts",
+    "apps.accounts",
 ]
+
+AUTH_USER_MODEL = 'accounts.User'
+
+
+
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+}
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.AllowAny',
+    ),
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'E-Learning Platform API',
+    'DESCRIPTION': 'E-Learning Platform for Nepal',
+    'VERSION': '1.0.0',
+}
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -78,11 +108,11 @@ WSGI_APPLICATION = "config.wsgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.environ.get("POSTGRES_DB", "elearning"),
-        "USER": os.environ.get("POSTGRES_USER", "elearning"),
-        "PASSWORD": os.environ.get("POSTGRES_PASSWORD", "elearning"),
-        "HOST": os.environ.get("POSTGRES_HOST", "localhost"),
-        "PORT": os.environ.get("POSTGRES_PORT", "5432"),
+        "NAME": os.environ.get("POSTGRES_DB"),
+        "USER": os.environ.get("POSTGRES_USER",),
+        "PASSWORD": os.environ.get("POSTGRES_PASSWORD"),
+        "HOST": os.environ.get("POSTGRES_HOST"),
+        "PORT": os.environ.get("POSTGRES_PORT"),
     }
 }
 
