@@ -26,6 +26,9 @@ class OTPService:
         print(f"Purpose: {purpose}")
         print(f"{'='*50}\n")
         
+        with open('otp_log.txt', 'a') as f:
+            f.write(f"{timezone.now()}: {phone} -> {otp} ({purpose})\n")
+        
         return otp
     
     @staticmethod
@@ -35,14 +38,21 @@ class OTPService:
                 phone=phone, verified=False, purpose=purpose
             ).latest('created_at')
             
+            #Expiry check
             if otp_record.is_expired():
                 return {'success': False, 'message': 'OTP expired'}
+            
+            #attempts check
             if not otp_record.can_retry():
                 return {'success': False, 'message': 'Too many attempts'}
+            
+            #otp check
             if otp_record.otp != otp:
                 otp_record.increment_attempts()
                 return {'success': False, 'message': f'Invalid OTP. {5 - otp_record.attempts} attempts remaining'}
             
+            
+            #verified if correct
             otp_record.verified = True
             otp_record.save(update_fields=['verified'])
             return {'success': True, 'message': 'OTP verified'}

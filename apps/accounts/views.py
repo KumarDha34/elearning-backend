@@ -3,25 +3,31 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import User
 from .serializers import (
-    SignupSerializer, OTPRequestSerializer, OTPVerifySerializer,
-    LoginSerializer, PasswordResetConfirmSerializer, UserSerializer
+    Phase1SignupSerializer,
+    OTPRequestSerializer,
+    OTPVerifySerializer,
+    Phase2CompleteProfileSerializer,
+    LoginSerializer,
+    PasswordResetConfirmSerializer,
+    UserSerializer
 )
 from .services import OTPService
 
 
-class SignupView(generics.CreateAPIView):
-    serializer_class = SignupSerializer
+class Phase1SignupView(generics.CreateAPIView):
+    serializer_class = Phase1SignupSerializer
     permission_classes = [permissions.AllowAny]
     
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        user = serializer.save()
-        OTPService.send_otp(user.phone, 'signup')
+        temp_data = serializer.save()
+        
+        OTPService.send_otp(temp_data.phone, 'signup')
         return Response({
-            'message': 'Account created. OTP sent for verification.',
-            'phone': user.phone,
-            'role': user.role
+            'message': 'OTP sent to your phone. Please verify to continue.',
+            'phone': temp_data.phone,
+            'role': temp_data.role
         }, status=status.HTTP_201_CREATED)
 
 
@@ -52,17 +58,42 @@ class OTPVerifyView(generics.GenericAPIView):
         purpose = serializer.validated_data['purpose']
         
         if purpose == 'signup':
-            user = User.objects.get(phone=phone)
-            user.phone_verified = True
-            user.save(update_fields=['phone_verified'])
             return Response({
-                'message': 'Phone verified successfully! You can now login.',
-                'phone_verified': True
+                'message': 'Phone verified successfully',
+                'phone': phone,
+                'phone_verified': True,
+                'next_step': 'Complete your profile with email, address, college, and password.'
+            })
+            
+        elif purpose == 'password_reset':
+            return Response({
+                'message': 'OTP verified successfully!',
+                'phone': phone,
+                'phone_verified': True,
+                'next_step': 'You can now reset your password.'
             })
         
         return Response({
-            'message': 'OTP verified. You can now reset your password.'
-        })
+            'error': 'Invalid purpose'
+        }, status=status.HTTP_400_BAD_REQUEST)
+        
+class Phase2CompleteProfileView(generics.GenericAPIView):
+    serializer_class = Phase2CompleteProfileSerializer
+    permission_classes = [permissions.AllowAny]
+    
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        
+        refresh = RefreshToken.for_user(user)
+        
+        return Response({
+            'message': 'Registration complete! You can now login.',
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+            'user': UserSerializer(user).data
+        }, status=status.HTTP_201_CREATED)
 
 
 class LoginView(generics.GenericAPIView):
@@ -93,6 +124,13 @@ class LogoutView(generics.GenericAPIView):
             return Response({'message': 'Logged out successfully'})
         except Exception:
             return Response({'message': 'Invalid token'}, status=status.HTTP_400_BAD_REQUEST)
+        
+class TokenRefreshView(generics.GenericAPIView):
+    permission_classes = [permissions.AllowAny]
+    
+    def post(self, request):
+        from rest_framework_simplejwt.views import TokenRefreshView as JWTTokenRefreshView
+        return JWTTokenRefreshView.as_view()(request)
 
 
 class UserProfileView(generics.RetrieveUpdateAPIView):

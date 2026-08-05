@@ -14,18 +14,22 @@ class User(AbstractUser):
         
     )
     
-    email = models.EmailField(blank=True, unique=True, null=True)
     phone = models.CharField(max_length=15, unique=True, help_text= "e.g., 9877676543")
     role = models.CharField(max_length=10, choices=ROLE_CHOICE)
-    username = models.CharField(max_length=20, unique=True, blank=True)
     first_name = models.CharField(max_length=20, blank=True)
     middle_name = models.CharField(max_length=20, blank=True)
     last_name = models.CharField(max_length=20, blank=True)
+    phone_verified = models.BooleanField(default=False)
+    
+    email = models.EmailField(blank=True, unique=True, null=True)
+    address = models.TextField(blank=True, help_text="Permanent address")
+    college_school = models.CharField(max_length=255, blank=True, help_text="College or School name")
+    class_level = models.CharField(max_length=50, blank=True, help_text="e.g., Class 12, BSc 1st Year")
+    
+    username = models.CharField(max_length=20, unique=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    phone_verified = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
-    
     
     objects = UserManager()
     
@@ -122,3 +126,19 @@ class OTPVerification(models.Model):
     
     def can_retry(self, max_attempts=5):
         return self.attempts < max_attempts
+    
+class TempUserData(models.Model):
+
+#need to store the data temporarily as first part data is not yet stored    
+    phone = models.CharField(max_length=15, unique=True)
+    role = models.CharField(max_length=10)
+    first_name = models.CharField(max_length=20)
+    middle_name = models.CharField(max_length=20, blank=True)
+    last_name = models.CharField(max_length=20)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'temp_user_data'
+    
+    def __str__(self):
+        return f"Temp: {self.first_name} {self.last_name} ({self.phone})"
