@@ -53,22 +53,24 @@ class OTPVerifySerializer(serializers.Serializer):
     def validate(self, data):
         
         phone = ''.join(filter(str.isdigit, data['phone']))
-        result = OTPService.verify_otp(phone, data['otp'], data['purpose'])
+        result = OTPService.verify_otp(phone, data['otp'], 
+        data['purpose'])
         if not result['success']:
             raise serializers.ValidationError(result['message'])
         data['phone'] = phone
         return data
     
     
-class Phase2CompleteProfileSerializer(serializers.Serializer):
+class StudentPhase2Serializer(serializers.Serializer):
     """
     Phase 2: Complete profile with email, address, college, class, password
     """
-    phone = serializers.CharField(max_length=15)
+    # phone = serializers.CharField(max_length=15)
     email = serializers.EmailField()
     address = serializers.CharField(max_length=500)
     college_school = serializers.CharField(max_length=255)
     class_level = serializers.CharField(max_length=50)
+    faculty = serializers.CharField(max_length=100)
     password = serializers.CharField(min_length=8, write_only=True)
     confirm_password = serializers.CharField(min_length=8, write_only=True)
     
@@ -110,12 +112,87 @@ class Phase2CompleteProfileSerializer(serializers.Serializer):
             address=self.validated_data['address'],
             college_school=self.validated_data['college_school'],
             class_level=self.validated_data['class_level'],
+            faculty=self.validated_data['faculty'],
             phone_verified=True,
             is_active=True
         )
         
         temp_data.delete()
         return user
+
+
+class TeacherPhase2Serializer(serializers.Serializer):
+    
+    phone = serializers.CharField(max_length=15)
+    email = serializers.EmailField()
+    faculty = serializers.CharField(max_length=100)
+    subjects = serializers.ListField(
+        child=serializers.CharField(max_length=100),
+        min_length=1,
+        help_text="List of subjects"
+    )
+    schools = serializers.ListField(
+        child=serializers.CharField(max_length=255),
+        min_length=1,
+        help_text="List of schools/colleges"
+    )
+    password = serializers.CharField(min_length=8, write_only=True)
+    confirm_password = serializers.CharField(min_length=8, write_only=True)
+    
+    def validate_phone(self, value):
+        value = ''.join(filter(str.isdigit, value))
+        if len(value) != 10:
+            raise serializers.ValidationError("Phone must be 10 digits")
+        
+        if User.objects.filter(phone=value).exists():
+            raise serializers.ValidationError("User already registered")
+        
+        if not TempUserData.objects.filter(phone=value).exists():
+            raise serializers.ValidationError("Please complete phase 1 registration first")
+        
+        # Verify it's a teacher
+        temp_data = TempUserData.objects.get(phone=value)
+        if temp_data.role != 'instructor':
+            raise serializers.ValidationError("This phone is registered as a student, not a teacher")
+        
+        return value
+    
+    def validate_email(self, value):
+        if User.objects.filter(email=value).exists():
+            raise serializers.ValidationError("Email already registered")
+        return value
+    
+    def validate(self, data):
+        if data['password'] != data['confirm_password']:
+            raise serializers.ValidationError({"confirm_password": "Passwords don't match"})
+        return data
+    
+    def save(self):
+        phone = self.validated_data['phone']
+        temp_data = TempUserData.objects.get(phone=phone)
+        
+        # Convert lists to comma-separated strings
+        subjects_str = ', '.join(self.validated_data['subjects'])
+        schools_str = ', '.join(self.validated_data['schools'])
+        
+        user = User.objects.create_user(
+            phone=phone,
+            role=temp_data.role,
+            password=self.validated_data['password'],
+            first_name=temp_data.first_name,
+            middle_name=temp_data.middle_name,
+            last_name=temp_data.last_name,
+            email=self.validated_data['email'],
+            faculty=self.validated_data['faculty'],
+            subjects=subjects_str,
+            schools=schools_str,
+            phone_verified=True,
+            is_active=True
+        )
+        
+        temp_data.delete()
+        return user
+
 
 
 class LoginSerializer(serializers.Serializer):
@@ -171,7 +248,7 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = (
-            'id', 'phone', 'username', 'role', 'phone_verified', 'class_level','college_school','address',
+            'id', 'phone', 'username', 'role', 'phone_verified', 'class_level', 'faculty','college_school','address',
             'first_name', 'middle_name', 'last_name', 'email',
             'created_at', 'updated_at'
         )

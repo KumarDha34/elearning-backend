@@ -26,6 +26,9 @@ class User(AbstractUser):
     college_school = models.CharField(max_length=255, blank=True, help_text="College or School name")
     class_level = models.CharField(max_length=50, blank=True, help_text="e.g., Class 12, BSc 1st Year")
     
+    subjects = models.CharField(max_length=500, blank=True, help_text="Comma separated subjects")
+    schools = models.CharField(max_length=500, blank=True, help_text="Comma separated schools")
+    
     username = models.CharField(max_length=20, unique=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
