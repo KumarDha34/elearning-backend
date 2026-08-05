@@ -1,39 +1,31 @@
 from django.urls import path
-from rest_framework_simplejwt.views import TokenRefreshView
-from .views import (
-    Phase1SignupView,
-    OTPRequestView,
-    OTPVerifyView,
-    Phase2CompleteProfileView,
-    LoginView,
-    LogoutView,
-    UserProfileView,
-    PasswordResetRequestView,
-    PasswordResetVerifyView,
-    PasswordResetConfirmView,
-)
+from . import views
+
+app_name = 'accounts'
 
 urlpatterns = [
-    #Signup part 1 and otp
-    path('signup/phase1/', Phase1SignupView.as_view(), name='signup-phase1'),    
+    # Signup 
+    path('signup/', views.SignupView.as_view(), name='signup'),
     
-    path('otp/request/', OTPRequestView.as_view(), name='otp-request'),
-    path('otp/verify/', OTPVerifyView.as_view(), name='otp-verify'),
+    path('otp/send/', views.OTPSendView.as_view(), name='otp-send'),
     
+    path('otp/verify/', views.OTPVerifyView.as_view(), name='otp-verify'),
     
-    #Signup part 2
-    path('signup/phase2/', Phase2CompleteProfileView.as_view(), name='signup-phase2'),
+    path('profile/student/complete/', views.StudentProfileCompleteView.as_view(), name='student-profile-complete'),
     
-    #Login & Logout
-    path('login/', LoginView.as_view(), name='login'),
-    path('logout/', LogoutView.as_view(), name='logout'),
-    path('token/refresh/', TokenRefreshView.as_view(), name='token-refresh'),
+    path('profile/teacher/complete/', views.TeacherProfileCompleteView.as_view(), name='teacher-profile-complete'),
     
-    #Profile
-    path('profile/', UserProfileView.as_view(), name='user-profile'),
+    path('login/', views.LoginView.as_view(), name='login'),
+    path('logout/', views.LogoutView.as_view(), name='logout'),
+    path('token/refresh/', views.TokenRefreshView.as_view(), name='token-refresh'),
+    path('me/', views.MeView.as_view(), name='me'),
     
     # Password Reset
-    path('password/reset/', PasswordResetRequestView.as_view(), name='password-reset-request'),
-    path('password/reset/verify/', PasswordResetVerifyView.as_view(), name='password-reset-verify'),
-    path('password/reset/confirm/', PasswordResetConfirmView.as_view(), name='password-reset-confirm'),
+    path('password/reset/', views.PasswordResetView.as_view(), name='password-reset'),
+    
+    # Admin
+    path('admin/users/', views.AdminUserListView.as_view(), name='admin-users'),
+    path('admin/users/create/', views.AdminUserCreateView.as_view(), name='admin-user-create'),
+    path('admin/users/<int:user_id>/', views.AdminUserUpdateView.as_view(), name='admin-user-update'),
+    path('admin/users/<int:user_id>/delete/', views.AdminUserDeleteView.as_view(), name='admin-user-delete'),
 ]
