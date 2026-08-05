@@ -1,28 +1,94 @@
-from rest_framework import permissions
+from rest_framework.permissions import BasePermission, SAFE_METHODS
 
-class IsStudent(permissions.BasePermission):
+
+class IsAdmin(BasePermission):
     def has_permission(self, request, view):
-        return (
-            request.user.is_authenticated and 
-            request.user.role == 'student')
+        return request.user.is_authenticated and request.user.is_admin
 
 
-class IsInstructor(permissions.BasePermission):
+class IsStudent(BasePermission):
     def has_permission(self, request, view):
-        return (
-            request.user.is_authenticated and 
-            request.user.role == 'instructor')
+        return request.user.is_authenticated and request.user.is_student
 
 
-class IsAdmin(permissions.BasePermission):
+class IsInstructor(BasePermission):
     def has_permission(self, request, view):
-        return (
-            request.user.is_authenticated and 
-            request.user.role == 'admin')
+        return request.user.is_authenticated and request.user.is_instructor
 
 
-class IsAdminOrInstructor(permissions.BasePermission):
-    def has_permission(self, request, view, obj):
-        if request.user.is_authenticated and request.user.role == 'admin':
+class IsEditor(BasePermission):
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and request.user.is_editor
+
+
+class IsAdminOrReadOnly(BasePermission):
+    def has_permission(self, request, view):
+        if request.method in SAFE_METHODS:
             return True
-        return obj == request.user
+        return request.user.is_authenticated and request.user.is_admin
+
+
+class IsAdminOrEditor(BasePermission):
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and (
+            request.user.is_admin or request.user.is_editor
+        )
+
+
+class IsAdminOrInstructor(BasePermission):
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and (
+            request.user.is_admin or request.user.is_instructor
+        )
+
+
+class IsActiveUser(BasePermission):
+    message = "Account is deactivated."
+
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and request.user.is_active
+
+
+class IsPhoneVerified(BasePermission):
+    message = "Phone number not verified."
+
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and request.user.phone_verified
+
+
+class HasCompletedProfile(BasePermission):
+    message = "Profile not completed."
+
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and request.user.profile_completed
+
+
+class IsOwner(BasePermission):
+    def has_object_permission(self, request, view, obj):
+        if request.method in SAFE_METHODS:
+            return True
+        
+        owner_attrs = ['user', 'owner', 'student', 'author', 'created_by']
+        for attr in owner_attrs:
+            if hasattr(obj, attr):
+                owner = getattr(obj, attr)
+                if owner and owner == request.user:
+                    return True
+        
+        return False
+
+
+class IsStudentWithProfile(BasePermission):
+    def has_permission(self, request, view):
+        return (request.user.is_authenticated and
+                request.user.is_student and
+                request.user.profile_completed and
+                request.user.is_active)
+
+
+class IsInstructorWithProfile(BasePermission):
+    def has_permission(self, request, view):
+        return (request.user.is_authenticated and
+                request.user.is_instructor and
+                request.user.profile_completed and
+                request.user.is_active)

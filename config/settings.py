@@ -116,7 +116,6 @@ DATABASES = {
     }
 }
 
-# AUTH_USER_MODEL = "accounts.User"
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
@@ -174,7 +173,6 @@ REST_FRAMEWORK = {
         "password_reset": "5/hour",
     },
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
-    "EXCEPTION_HANDLER": "apps.common.exceptions.custom_exception_handler",
 }
 
 SPECTACULAR_SETTINGS = {
