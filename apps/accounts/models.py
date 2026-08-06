@@ -201,6 +201,16 @@ class StudentProfile(models.Model):
     district = models.CharField(max_length=100, verbose_name='District')
     municipality = models.CharField(max_length=100, verbose_name='Municipality')
     email = models.EmailField(verbose_name='Email')
+    alternative_emails = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='List of alternative email addresses'
+    )
+    alternative_phones = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='List of alternative phone numbers'
+    )
     
     points_balance = models.IntegerField(default=0, verbose_name='Points Balance')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -227,6 +237,16 @@ class TeacherProfile(models.Model):
     subject = models.CharField(max_length=100, verbose_name='Subject')
     schools = models.TextField(verbose_name='Schools/Colleges', help_text='Comma separated school names')
     email = models.EmailField(verbose_name='Email')
+    alternative_emails = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='List of alternative email addresses'
+    )
+    alternative_phones = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='List of alternative phone numbers'
+    )
     
     rating_avg = models.DecimalField(max_digits=3, decimal_places=2, default=0.00, verbose_name='Average Rating')
     content_limit = models.IntegerField(default=50, verbose_name='Content Limit')
