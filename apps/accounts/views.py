@@ -11,6 +11,8 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.views import TokenObtainPairView
 from drf_spectacular.utils import extend_schema
 from django.conf import settings
+import datetime
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 
 from .serializers import (
     SignupSerializer, 
@@ -19,13 +21,16 @@ from .serializers import (
     CustomTokenObtainPairSerializer,
     LogoutSerializer, 
     LoginSerializer, 
-    PasswordResetSerializer, 
     AdminUserSerializer,
     UserSerializer,
     OTPSendSerializer,
-    OTPVerifySerializer
+    OTPVerifySerializer,
+    StudentProfileUpdateSerializer, 
+    TeacherProfileUpdateSerializer,
+    StudentProfileSerializer, AdminUserUpdateSerializer,
+    TeacherProfileSerializer,PasswordResetConfirmSerializer,PasswordResetRequestSerializer
 )
-from .permissions import IsAdmin, IsActiveUser, IsPhoneVerified
+from .permissions import IsAdmin, IsActiveUser, IsPhoneVerified, HasCompletedProfile
 from .models import StudentProfile, TeacherProfile, OTPVerification
 from .services import otp_service
 
@@ -33,12 +38,13 @@ logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
+# ============================================================================
+# SIGNUP & OTP VIEWS
+# ============================================================================
+
 class SignupView(APIView):
-    """
-    PHASE 1: Signup - Password entered here
-    Phone number entered ONCE here
-    """
     permission_classes = [AllowAny]
+    serializer_class = SignupSerializer
     
     @extend_schema(request=SignupSerializer)
     @transaction.atomic
@@ -56,7 +62,7 @@ class SignupView(APIView):
                 'step': 1,
                 'next': 'otp_verification',
                 'phone_number': user.phone_number,
-                'otp': otp.otp_code,  # Development only
+                'otp': otp.otp_code,
                 'user': UserSerializer(user).data,
                 'access': str(refresh.access_token),
                 'refresh': str(refresh),
@@ -72,11 +78,8 @@ class SignupView(APIView):
 
 
 class OTPSendView(APIView):
-    """
-    Send OTP - Resend OTP
-    Requires phone_number in request body
-    """
     permission_classes = [AllowAny]
+    serializer_class = OTPSendSerializer
     
     @extend_schema(request=OTPSendSerializer)
     def post(self, request):
@@ -104,37 +107,50 @@ class OTPSendView(APIView):
 
 class OTPVerifyView(APIView):
     """
-    Verify OTP - Phone number from authenticated user
-    No phone_number required in body
+    UNIFIED OTP Verification - Handles BOTH Signup AND Password Reset
     """
     permission_classes = [AllowAny]
+    serializer_class = OTPVerifySerializer
     
     @extend_schema(request=OTPVerifySerializer)
     def post(self, request):
-        serializer = OTPVerifySerializer(data=request.data)
+        # Pass request to serializer context
+        serializer = OTPVerifySerializer(
+            data=request.data,
+            context={'request': request}
+        )
         serializer.is_valid(raise_exception=True)
         
-        # Get phone number from authenticated user if available
+        otp_code = serializer.validated_data['otp']
+        purpose = serializer.validated_data.get('purpose', OTPVerification.Purpose.SIGNUP)
+        
         if request.user and request.user.is_authenticated:
             phone_number = request.user.phone_number
+            user = request.user
+            logger.info(f"Phone auto-detected: {phone_number}")
         else:
-            # Fallback: get from request body (for unauthenticated)
             phone_number = request.data.get('phone_number')
             if not phone_number:
-                return Response(
-                    {'error': 'phone_number required for unauthenticated users.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+                return Response({
+                    'error': 'phone_number required for unauthenticated users.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            user = User.objects.filter(phone_number=phone_number).first()
+            if not user:
+                return Response({
+                    'error': 'User not found.'
+                }, status=status.HTTP_404_NOT_FOUND)
+            logger.info(f"Phone provided: {phone_number}")
         
-        code = serializer.validated_data['otp']
-        
+        # ============================================================
+        # Verify OTP
+        # ============================================================
         try:
-            otp_service.verify_otp(phone_number, OTPVerification.Purpose.SIGNUP, code)
+            otp_service.verify_otp(phone_number, purpose, otp_code)
         except ValueError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         
-        user = User.objects.filter(phone_number=phone_number).first()
-        if user:
+        if purpose == OTPVerification.Purpose.SIGNUP:
             user.phone_verified = True
             user.signup_step = 2
             user.save(update_fields=['phone_verified', 'signup_step'])
@@ -150,14 +166,38 @@ class OTPVerifyView(APIView):
                 'user': UserSerializer(user).data
             })
         
-        return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+        elif purpose == OTPVerification.Purpose.PASSWORD_RESET:
+            import jwt
+            reset_token = jwt.encode(
+                {
+                    'phone': phone_number, 
+                    'purpose': 'reset',
+                    'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=5)
+                },
+                settings.SECRET_KEY,
+                algorithm='HS256'
+            )
+            
+            return Response({
+                'message': 'OTP verified successfully. You can now reset your password.',
+                'verified': True,
+                'reset_token': reset_token,
+                'phone_number': phone_number
+            })
+        
+        return Response({
+            'message': 'OTP verified successfully.',
+            'verified': True
+        })
 
+
+# ============================================================================
+# PROFILE COMPLETE VIEWS
+# ============================================================================
 
 class StudentProfileCompleteView(APIView):
-    """
-    PHASE 3a: Complete Student Profile -  PASSWORD HERE
-    """
     permission_classes = [IsAuthenticated, IsActiveUser, IsPhoneVerified]
+    serializer_class = StudentProfileCompleteSerializer
     
     @extend_schema(request=StudentProfileCompleteSerializer)
     @transaction.atomic
@@ -186,7 +226,6 @@ class StudentProfileCompleteView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
         
-        # Create Student Profile
         StudentProfile.objects.create(
             user=user,
             school_name=data['school_name'],
@@ -198,7 +237,6 @@ class StudentProfileCompleteView(APIView):
             email=data['email']
         )
         
-        #  Set password here (user was created with no password)
         user.set_password(data['password'])
         user.profile_completed = True
         user.signup_step = 3
@@ -217,10 +255,8 @@ class StudentProfileCompleteView(APIView):
 
 
 class TeacherProfileCompleteView(APIView):
-    """
-    PHASE 3b: Complete Teacher Profile -  PASSWORD HERE
-    """
     permission_classes = [IsAuthenticated, IsActiveUser, IsPhoneVerified]
+    serializer_class = TeacherProfileCompleteSerializer
     
     @extend_schema(request=TeacherProfileCompleteSerializer)
     @transaction.atomic
@@ -249,7 +285,6 @@ class TeacherProfileCompleteView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
         
-        # Create Teacher Profile
         TeacherProfile.objects.create(
             user=user,
             faculty=data['faculty'],
@@ -259,7 +294,6 @@ class TeacherProfileCompleteView(APIView):
             bio=data.get('bio', '')
         )
         
-        #  Set password here (user was created with no password)
         user.set_password(data['password'])
         user.profile_completed = True
         user.signup_step = 3
@@ -276,17 +310,113 @@ class TeacherProfileCompleteView(APIView):
             'refresh': str(refresh),
         }, status=status.HTTP_200_OK)
 
+
+# ============================================================================
+#  PROFILE UPDATE VIEWS
+# ============================================================================
+
+class StudentProfileUpdateView(APIView):
+    """
+    PATCH /profile/student/update/
+    Update Student Profile - Combined
+     Profile Fields: school_name, district, municipality, class_level, faculty
+     Alternative Contacts: alternative_email, alternative_phone
+     NOT Editable: email (primary), phone_number (primary)
+    """
+    permission_classes = [IsAuthenticated, IsActiveUser, HasCompletedProfile]
+    serializer_class = StudentProfileUpdateSerializer
+    
+    @extend_schema(request=StudentProfileUpdateSerializer)
+    def patch(self, request):
+        user = request.user
+        
+        if not user.is_student:
+            return Response({
+                'error': 'This endpoint is for students only.'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        if not hasattr(user, 'student_profile'):
+            return Response({
+                'error': 'Student profile not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        profile = user.student_profile
+        
+        serializer = StudentProfileUpdateSerializer(
+            data=request.data,
+            context={'user': user, 'profile': profile},
+            partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        
+        serializer.update(profile, serializer.validated_data)
+        
+        return Response({
+            'message': 'Student profile updated successfully.',
+            'profile': StudentProfileSerializer(profile).data,
+            'alternative_emails': profile.alternative_emails,
+            'alternative_phones': profile.alternative_phones
+        }, status=status.HTTP_200_OK)
+
+
+class TeacherProfileUpdateView(APIView):
+    """
+    PATCH /profile/teacher/update/
+    Update Teacher Profile - Combined
+     Profile Fields: faculty, schools, bio
+     Alternative Contacts: alternative_email, alternative_phone
+     NOT Editable: email (primary), phone_number (primary), subject
+    """
+    permission_classes = [IsAuthenticated, IsActiveUser, HasCompletedProfile]
+    serializer_class = TeacherProfileUpdateSerializer
+    
+    @extend_schema(request=TeacherProfileUpdateSerializer)
+    def patch(self, request):
+        user = request.user
+        
+        if not user.is_instructor:
+            return Response({
+                'error': 'This endpoint is for instructors only.'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        if not hasattr(user, 'teacher_profile'):
+            return Response({
+                'error': 'Teacher profile not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        profile = user.teacher_profile
+        
+        serializer = TeacherProfileUpdateSerializer(
+            data=request.data,
+            context={'user': user, 'profile': profile},
+            partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        
+        serializer.update(profile, serializer.validated_data)
+        
+        return Response({
+            'message': 'Teacher profile updated successfully.',
+            'profile': TeacherProfileSerializer(profile).data,
+            'alternative_emails': profile.alternative_emails,
+            'alternative_phones': profile.alternative_phones
+        }, status=status.HTTP_200_OK)
+
+
+# ============================================================================
+# AUTHENTICATION VIEWS
+# ============================================================================
+
 class LoginView(TokenObtainPairView):
-    """
-    Login - Phone + Password
-    Only allowed if phone_verified AND profile_completed
-    """
     serializer_class = CustomTokenObtainPairSerializer
 
 
 class LogoutView(APIView):
-    """Logout - Blacklist refresh token"""
+    """
+    POST /api/v1/auth/logout/ - Logout and blacklist refresh token
+    """
     permission_classes = [IsAuthenticated]
+    serializer_class = LogoutSerializer
     
     @extend_schema(request=LogoutSerializer)
     def post(self, request):
@@ -294,16 +424,29 @@ class LogoutView(APIView):
         serializer.is_valid(raise_exception=True)
         
         try:
-            token = RefreshToken(serializer.validated_data['refresh'])
+            refresh_token = serializer.validated_data['refresh']
+            token = RefreshToken(refresh_token)
+            
             token.blacklist()
-        except TokenError:
-            return Response({'error': 'Invalid token'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        return Response({'message': 'Logged out successfully'})
+            
+            return Response({
+                'message': 'Logged out successfully. Please discard your tokens.',
+                'success': True
+            }, status=status.HTTP_200_OK)
+            
+        except TokenError as e:
+            logger.error(f"Logout error: {str(e)}")
+            return Response({
+                'error': 'Invalid refresh token.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"Logout error: {str(e)}")
+            return Response({
+                'error': 'Logout failed. Please try again.'
+            }, status=status.HTTP_400_BAD_REQUEST)
 
 
 class MeView(RetrieveAPIView):
-    """Complete user info - Phase 1 + Phase 2 + Permissions"""
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated]
     
@@ -312,9 +455,9 @@ class MeView(RetrieveAPIView):
 
 
 class TokenRefreshView(APIView):
-    """Refresh access token"""
     permission_classes = [AllowAny]
-    
+    serializer_class = None
+
     def post(self, request):
         refresh_token = request.data.get('refresh')
         if not refresh_token:
@@ -330,57 +473,129 @@ class TokenRefreshView(APIView):
             return Response({'error': 'Invalid refresh token'}, status=status.HTTP_401_UNAUTHORIZED)
 
 
-class PasswordResetView(APIView):
-    """Password Reset - Combined request and confirm"""
+class PasswordResetRequestView(APIView):
+    """
+    POST /api/v1/auth/password/reset/ - Request password reset OTP
+    """
     permission_classes = [AllowAny]
+    serializer_class = PasswordResetRequestSerializer
     
-    def _request_reset(self, phone_number):
+    @extend_schema(request=PasswordResetRequestSerializer)
+    def post(self, request):
+        serializer = PasswordResetRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        phone_number = serializer.validated_data['phone_number']
         user = User.objects.filter(phone_number=phone_number, is_active=True).first()
+        
         if user:
             otp = otp_service.generate_otp(phone_number, OTPVerification.Purpose.PASSWORD_RESET)
             return Response({
                 'message': 'Password reset OTP sent.',
                 'phone_number': phone_number,
-                'otp': otp.otp_code
+                'otp': otp.otp_code 
             })
-        return Response({'message': 'If an account exists, OTP has been sent.'})
-    
-    def _confirm_reset(self, phone_number, new_password):
-        user = User.objects.filter(phone_number=phone_number, is_active=True).first()
-        if user:
-            user.set_password(new_password)
-            user.save(update_fields=['password'])
-            return Response({'message': 'Password reset successfully.'})
-        return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+        
+        return Response({
+            'message': 'If an account exists, OTP has been sent.'
+        })
 
+class PasswordResetConfirmView(APIView):
+    """
+    POST /api/v1/auth/password/reset/confirm/ - Reset password
+    
+    Option 1 - Using reset_token (Recommended):
+        {"reset_token": "jwt_token", "new_password": "...", "new_password_confirm": "..."}
+    
+    Option 2 - Authenticated user (NO phone needed!):
+        Header: Authorization: Bearer <access_token>
+        Body: {"new_password": "...", "new_password_confirm": "..."}
+    
+    Option 3 - Using phone_number (Legacy support):
+        {"phone_number": "9765299096", "new_password": "...", "new_password_confirm": "..."}
+    """
+    permission_classes = [AllowAny]
+    serializer_class = PasswordResetConfirmSerializer
+    
+    @extend_schema(request=PasswordResetConfirmSerializer)
     def post(self, request):
-        action = request.query_params.get('action', 'request')
-        serializer = PasswordResetSerializer(data=request.data)
+        serializer = PasswordResetConfirmSerializer(
+            data=request.data,
+            context={'request': request}
+        )
         serializer.is_valid(raise_exception=True)
         
-        if action == 'request':
-            return self._request_reset(serializer.validated_data['phone_number'])
+        new_password = serializer.validated_data['new_password']
+        phone_number = None
+        user = None
+        
+        if 'reset_token' in request.data:
+            try:
+                import jwt
+                payload = jwt.decode(
+                    request.data['reset_token'],
+                    settings.SECRET_KEY,
+                    algorithms=['HS256']
+                )
+                phone_number = payload.get('phone')
+                if not phone_number:
+                    return Response({
+                        'error': 'Invalid reset token.'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                user = User.objects.filter(phone_number=phone_number, is_active=True).first()
+                logger.info(f"User found via reset_token: {phone_number}")
+                
+            except jwt.ExpiredSignatureError:
+                return Response({
+                    'error': 'Reset token has expired. Please request a new OTP.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            except jwt.InvalidTokenError:
+                return Response({
+                    'error': 'Invalid reset token.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        elif request.user and request.user.is_authenticated:
+            user = request.user
+            phone_number = user.phone_number
+            logger.info(f"User found via authentication token: {phone_number}")
+        
         else:
-            return self._confirm_reset(
-                serializer.validated_data['phone_number'],
-                serializer.validated_data.get('new_password')
-            )
-
+            phone_number = serializer.validated_data.get('phone_number')
+            if not phone_number:
+                return Response({
+                    'error': 'phone_number, reset_token, or authentication required.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            user = User.objects.filter(phone_number=phone_number, is_active=True).first()
+            logger.info(f"User found via phone_number: {phone_number}")
+        
+        if not user:
+            return Response({
+                'error': 'User not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Reset password
+        user.set_password(new_password)
+        user.save(update_fields=['password'])
+        
+        logger.info(f"Password reset successful for user: {phone_number}")
+        
+        return Response({
+            'message': 'Password reset successfully. Please login with your new password.'
+        })
 
 # ============================================================================
 # ADMIN VIEWS
 # ============================================================================
 
 class AdminUserListView(ListAPIView):
-    """List all users - Admin only"""
     serializer_class = UserSerializer
     permission_classes = [IsAdmin]
     queryset = User.objects.all()
 
 
 class AdminUserCreateView(APIView):
-    """Create editor - Admin only"""
     permission_classes = [IsAdmin]
+    serializer_class = AdminUserSerializer
     
     @extend_schema(request=AdminUserSerializer)
     def post(self, request):
@@ -395,42 +610,77 @@ class AdminUserCreateView(APIView):
 
 
 class AdminUserUpdateView(APIView):
-    """Update user - Admin only"""
-    permission_classes = [IsAdmin]
+    """
+    PATCH /api/v1/auth/admin/users/{phone_number}/
+    Activate or Deactivate a user by phone number (Admin only)
+    Can also update role to student/instructor/editor
     
-    def patch(self, request, user_id):
+    Example: PATCH /admin/users/9841234567/
+    
+    Request Body:
+        {
+            "is_active": true/false,
+            "role": "student" | "instructor" | "editor"
+        }
+    """
+    permission_classes = [IsAdmin]
+    serializer_class = AdminUserUpdateSerializer
+    
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name='phone_number',
+                location='path',
+                description='Phone number of the user (10 digits)',
+                required=True,
+                type=OpenApiTypes.STR
+            )
+        ],
+        request=AdminUserUpdateSerializer,
+        responses={
+            200: UserSerializer,
+            400: OpenApiTypes.OBJECT,
+            404: OpenApiTypes.OBJECT
+        }
+    )
+    def patch(self, request, phone_number):
         try:
-            user = User.objects.get(id=user_id)
+            user = User.objects.get(phone_number=phone_number)
+            logger.info(f"User found by phone: {phone_number}")
         except User.DoesNotExist:
-            return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({
+                'error': f'User not found with phone number: {phone_number}'
+            }, status=status.HTTP_404_NOT_FOUND)
         
-        allowed_fields = ['is_active', 'role', 'profile_completed']
+        serializer = AdminUserUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validated_data = serializer.validated_data
+        
+        if 'role' in validated_data:
+            if user.is_admin:
+                return Response({
+                    'error': 'Cannot change role of an Admin user.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if 'is_active' in validated_data and validated_data['is_active'] is False:
+            if user == request.user:
+                return Response({
+                    'error': 'You cannot deactivate your own account.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        allowed_fields = ['is_active', 'role']
+        updated_fields = []
+        
         for field in allowed_fields:
-            if field in request.data:
-                setattr(user, field, request.data[field])
+            if field in validated_data:
+                setattr(user, field, validated_data[field])
+                updated_fields.append(f"{field}={validated_data[field]}")
         
         user.save(update_fields=allowed_fields)
+        
+        logger.info(f"Admin {request.user.phone_number} updated user {user.phone_number}: {', '.join(updated_fields)}")
         
         return Response({
             'message': 'User updated successfully.',
             'user': UserSerializer(user).data
-        })
-
-
-class AdminUserDeleteView(APIView):
-    """Delete user - Admin only"""
-    permission_classes = [IsAdmin]
-    
-    def delete(self, request, user_id):
-        try:
-            user = User.objects.get(id=user_id)
-        except User.DoesNotExist:
-            return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
-        
-        if user == request.user:
-            return Response({'error': 'Cannot delete yourself.'}, status=status.HTTP_400_BAD_REQUEST)
-        if user.is_admin:
-            return Response({'error': 'Cannot delete another admin.'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        user.delete()
-        return Response({'message': 'User deleted successfully.'})
+        }, status=status.HTTP_200_OK)
