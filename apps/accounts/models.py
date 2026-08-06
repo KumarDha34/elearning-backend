@@ -193,14 +193,15 @@ class StudentProfile(models.Model):
     school_name = models.CharField(max_length=200, verbose_name='School/College Name')
     school_type = models.CharField(
         max_length=20,
-        choices=[('school', 'School'), ('college', 'College')],
+        choices=[('school', 'School'), ('college', 'College'), ('university', 'university')],
         default='school'
     )
     class_level = models.CharField(max_length=50, verbose_name='Class')
     faculty = models.CharField(max_length=100, blank=True, verbose_name='Faculty')
-    district = models.CharField(max_length=100, verbose_name='District')
-    municipality = models.CharField(max_length=100, verbose_name='Municipality')
+    address = models.CharField(max_length=100, verbose_name='Address', null=True, help_text='college address: e.g., kalanki')
     email = models.EmailField(verbose_name='Email')
+    profile_image = models.ImageField(upload_to="images/student", null=True, blank= True)
+
     alternative_emails = models.JSONField(
         default=list,
         blank=True,
@@ -237,6 +238,8 @@ class TeacherProfile(models.Model):
     subject = models.CharField(max_length=100, verbose_name='Subject')
     schools = models.TextField(verbose_name='Schools/Colleges', help_text='Comma separated school names')
     email = models.EmailField(verbose_name='Email')
+    profile_image = models.ImageField(upload_to="images/teachers", null=True, blank= True)
+
     alternative_emails = models.JSONField(
         default=list,
         blank=True,
@@ -252,6 +255,12 @@ class TeacherProfile(models.Model):
     content_limit = models.IntegerField(default=50, verbose_name='Content Limit')
     content_count = models.IntegerField(default=0, verbose_name='Content Count')
     bio = models.TextField(blank=True, verbose_name='Biography')
+    Verification = models.ImageField(upload_to='images', null= True)
+    status = models.CharField(
+            max_length=20,
+            choices=[('not_verified', 'not_verified'), ('verified', 'verified')],
+            default='not_verified'
+        )
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
