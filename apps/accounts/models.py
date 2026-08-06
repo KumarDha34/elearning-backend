@@ -119,7 +119,7 @@ class OTPVerification(models.Model):
     
     class Purpose(models.TextChoices):
         SIGNUP = 'signup', 'Signup'
-        LOGIN = 'login', 'Login'
+        LOGIN = 'login', 'Login' #not needed
         PASSWORD_RESET = 'password_reset', 'Password Reset'
 
     phone_number = models.CharField(
