@@ -64,13 +64,6 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
-
-SPECTACULAR_SETTINGS = {
-    'TITLE': 'E-Learning Platform API',
-    'DESCRIPTION': 'E-Learning Platform for Nepal',
-    'VERSION': '1.0.0',
-}
-
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "corsheaders.middleware.CorsMiddleware",
@@ -180,6 +173,16 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "Complete Module API",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    "DISPLAY_CURL": False,  
+    "SWAGGER_UI_SETTINGS": {
+        "persistAuthorization": True,
+        "displayRequestDuration": True,
+        "filter": True,
+        "showCommonExtensions": True,
+        "displayOperationId": False,
+    },
+    "COMPONENT_SPLIT_REQUEST": True,
+    "SCHEMA_PATH_PREFIX": "/api/v1",
 }
 
 # ---------------------------------------------------------------------------

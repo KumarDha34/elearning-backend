@@ -277,7 +277,7 @@ class TeacherProfile(models.Model):
     content_limit = models.IntegerField(default=50, verbose_name='Content Limit')
     content_count = models.IntegerField(default=0, verbose_name='Content Count')
     bio = models.TextField(blank=True, verbose_name='Biography')
-    verification_document = models.ImageField(
+    verification_document = models.FileField(
             upload_to='images/teacher_verification',
             null=True,
             blank=True,

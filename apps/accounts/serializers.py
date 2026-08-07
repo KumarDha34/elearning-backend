@@ -64,11 +64,9 @@ class SignupSerializer(serializers.Serializer):
         phone_number = validated_data.pop('phone_number')
         return User.objects.create_user(
             phone_number=phone_number,
-            password='',
             first_name=validated_data.get('first_name'),
             middle_name=validated_data.get('middle_name', ''),
             last_name=validated_data.get('last_name'),
-            email='',
             role=validated_data.get('role'),
             phone_verified=False,
             is_active=True,
@@ -167,7 +165,7 @@ class TeacherProfileCompleteSerializer(serializers.Serializer):
         validators=[validate_image_file],
         help_text="Upload profile image (PNG, JPG, JPEG only, max 5MB)"
     )
-    verification_document = serializers.ImageField(
+    verification_document = serializers.FileField(
         required=False, 
         allow_null=True,
         validators=[validate_verification_document],
@@ -285,83 +283,105 @@ class StudentProfileUpdateSerializer(serializers.Serializer):
         return value.strip() if value else value
     
     def validate_alternative_email(self, value):
-        if not value:
-            return value
+        """Validate single alternative email"""
+        if not value or not value.strip():
+            return None  # Return None to clear the list
         
-        user = self.context.get('user')
-        profile = self.context.get('profile')
+        email = value.strip()
         
-        if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', value):
+        # Validate email format
+        if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', email):
             raise serializers.ValidationError("Invalid email format.")
         
-        if user and user.email == value:
+        user = self.context.get('user')
+        profile = self.context.get('profile')
+        
+        # Check if it's the primary email
+        if user and user.email == email:
             raise serializers.ValidationError("This is your primary email. Use a different email as alternative.")
         
-        if profile and value in profile.alternative_emails:
-            raise serializers.ValidationError("This email is already in your alternative emails list.")
-        
-        if User.objects.filter(email=value).exclude(id=user.id).exists():
+        # Check if already registered as primary email by any user
+        if User.objects.filter(email=email).exclude(id=user.id).exists():
             raise serializers.ValidationError("This email is already registered as primary email by another user.")
         
+        # Check if registered as alternative email by any other student
         if profile:
-            if StudentProfile.objects.exclude(id=profile.id).filter(alternative_emails__contains=[value]).exists():
+            if StudentProfile.objects.exclude(id=profile.id).filter(alternative_emails__contains=[email]).exists():
                 raise serializers.ValidationError("This email is already used as alternative email by another student.")
         else:
-            if StudentProfile.objects.filter(alternative_emails__contains=[value]).exists():
+            if StudentProfile.objects.filter(alternative_emails__contains=[email]).exists():
                 raise serializers.ValidationError("This email is already used as alternative email by another student.")
         
-        if TeacherProfile.objects.filter(alternative_emails__contains=[value]).exists():
+        # Check if registered as alternative email by any teacher
+        if TeacherProfile.objects.filter(alternative_emails__contains=[email]).exists():
             raise serializers.ValidationError("This email is already used as alternative email by a teacher.")
         
-        return value
+        return email
 
     def validate_alternative_phone(self, value):
-        if not value:
-            return value
+        """Validate single alternative phone"""
+        if not value or not value.strip():
+            return None  # Return None to clear the list
         
-        #  Use validator for format
-        from .validators import validate_nepali_phone_number
-        validate_nepali_phone_number(value)
+        phone = value.strip()
+        
+        # Validate phone format
+        if not re.match(r'^9[678]\d{8}$', phone):
+            raise serializers.ValidationError(
+                "Invalid phone number format. Must be a valid Nepali phone number (e.g., 9841234567)."
+            )
         
         user = self.context.get('user')
         profile = self.context.get('profile')
         
-        if user and user.phone_number == value:
+        # Check if it's the primary phone
+        if user and user.phone_number == phone:
             raise serializers.ValidationError("This is your primary phone number. Use a different number as alternative.")
         
-        if profile and value in profile.alternative_phones:
-            raise serializers.ValidationError("This phone number is already in your alternative phones list.")
-        
-        if User.objects.filter(phone_number=value).exclude(id=user.id).exists():
+        # Check if already registered as primary phone by any user
+        if User.objects.filter(phone_number=phone).exclude(id=user.id).exists():
             raise serializers.ValidationError("This phone number is already registered as primary by another user.")
         
+        # Check if registered as alternative phone by any other student
         if profile:
-            if StudentProfile.objects.exclude(id=profile.id).filter(alternative_phones__contains=[value]).exists():
+            if StudentProfile.objects.exclude(id=profile.id).filter(alternative_phones__contains=[phone]).exists():
                 raise serializers.ValidationError("This phone number is already used as alternative by another student.")
         else:
-            if StudentProfile.objects.filter(alternative_phones__contains=[value]).exists():
+            if StudentProfile.objects.filter(alternative_phones__contains=[phone]).exists():
                 raise serializers.ValidationError("This phone number is already used as alternative by another student.")
         
-        if TeacherProfile.objects.filter(alternative_phones__contains=[value]).exists():
+        # Check if registered as alternative phone by any teacher
+        if TeacherProfile.objects.filter(alternative_phones__contains=[phone]).exists():
             raise serializers.ValidationError("This phone number is already used as alternative by a teacher.")
         
-        return value
+        return phone
 
     def update(self, instance, validated_data):
+        # Update profile fields
         profile_fields = ['school_name', 'address', 'class_level', 'faculty', 'profile_image']
         for field in profile_fields:
             if field in validated_data:
                 setattr(instance, field, validated_data[field])
         
-        if 'alternative_email' in validated_data and validated_data['alternative_email']:
+        #  Handle SINGLE alternative email - REPLACE entire list
+        if 'alternative_email' in validated_data:
             email = validated_data['alternative_email']
-            if email not in instance.alternative_emails:
-                instance.alternative_emails.append(email)
+            if email:
+                # Replace with single email
+                instance.alternative_emails = [email]
+            else:
+                # Clear the list
+                instance.alternative_emails = []
         
-        if 'alternative_phone' in validated_data and validated_data['alternative_phone']:
+        #  Handle SINGLE alternative phone - REPLACE entire list
+        if 'alternative_phone' in validated_data:
             phone = validated_data['alternative_phone']
-            if phone not in instance.alternative_phones:
-                instance.alternative_phones.append(phone)
+            if phone:
+                # Replace with single phone
+                instance.alternative_phones = [phone]
+            else:
+                # Clear the list
+                instance.alternative_phones = []
         
         instance.save()
         return instance
@@ -385,7 +405,7 @@ class TeacherProfileUpdateSerializer(serializers.Serializer):
         help_text="Upload profile image (PNG, JPG, JPEG only, max 5MB)"
     )
     
-    verification_document = serializers.ImageField(
+    verification_document = serializers.FileField(
         required=False,
         allow_null=True,
         validators=[validate_verification_document],
@@ -437,76 +457,75 @@ class TeacherProfileUpdateSerializer(serializers.Serializer):
         return ', '.join(school_list)
 
     def validate_alternative_email(self, value):
-        if not value:
-            return value
+        """Validate single alternative email"""
+        if not value or not value.strip():
+            return None  
+        
+        email = value.strip()
+        
+        if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', email):
+            raise serializers.ValidationError("Invalid email format.")
         
         user = self.context.get('user')
         profile = self.context.get('profile')
         
-        if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', value):
-            raise serializers.ValidationError("Invalid email format.")
-        
-        if user and user.email == value:
+        if user and user.email == email:
             raise serializers.ValidationError("This is your primary email. Use a different email as alternative.")
         
-        if profile and value in profile.alternative_emails:
-            raise serializers.ValidationError("This email is already in your alternative emails list.")
-        
-        if User.objects.filter(email=value).exclude(id=user.id).exists():
+        if User.objects.filter(email=email).exclude(id=user.id).exists():
             raise serializers.ValidationError("This email is already registered as primary email by another user.")
         
-        if StudentProfile.objects.filter(alternative_emails__contains=[value]).exists():
+        if StudentProfile.objects.filter(alternative_emails__contains=[email]).exists():
             raise serializers.ValidationError("This email is already used as alternative email by a student.")
         
         if profile:
-            if TeacherProfile.objects.exclude(id=profile.id).filter(alternative_emails__contains=[value]).exists():
+            if TeacherProfile.objects.exclude(id=profile.id).filter(alternative_emails__contains=[email]).exists():
                 raise serializers.ValidationError("This email is already used as alternative email by another teacher.")
         else:
-            if TeacherProfile.objects.filter(alternative_emails__contains=[value]).exists():
+            if TeacherProfile.objects.filter(alternative_emails__contains=[email]).exists():
                 raise serializers.ValidationError("This email is already used as alternative email by another teacher.")
         
-        return value
+        return email
 
     def validate_alternative_phone(self, value):
-        if not value:
-            return value
+        """Validate single alternative phone"""
+        if not value or not value.strip():
+            return None  
         
-        #  Use validator for format
-        from .validators import validate_nepali_phone_number
-        validate_nepali_phone_number(value)
+        phone = value.strip()
+        
+        if not re.match(r'^9[678]\d{8}$', phone):
+            raise serializers.ValidationError(
+                "Invalid phone number format. Must be a valid Nepali phone number (e.g., 9841234567)."
+            )
         
         user = self.context.get('user')
         profile = self.context.get('profile')
         
-        if user and user.phone_number == value:
+        if user and user.phone_number == phone:
             raise serializers.ValidationError("This is your primary phone number. Use a different number as alternative.")
         
-        if profile and value in profile.alternative_phones:
-            raise serializers.ValidationError("This phone number is already in your alternative phones list.")
-        
-        if User.objects.filter(phone_number=value).exclude(id=user.id).exists():
+        if User.objects.filter(phone_number=phone).exclude(id=user.id).exists():
             raise serializers.ValidationError("This phone number is already registered as primary by another user.")
         
-        if StudentProfile.objects.filter(alternative_phones__contains=[value]).exists():
+        if StudentProfile.objects.filter(alternative_phones__contains=[phone]).exists():
             raise serializers.ValidationError("This phone number is already used as alternative by a student.")
         
         if profile:
-            if TeacherProfile.objects.exclude(id=profile.id).filter(alternative_phones__contains=[value]).exists():
+            if TeacherProfile.objects.exclude(id=profile.id).filter(alternative_phones__contains=[phone]).exists():
                 raise serializers.ValidationError("This phone number is already used as alternative by another teacher.")
         else:
-            if TeacherProfile.objects.filter(alternative_phones__contains=[value]).exists():
+            if TeacherProfile.objects.filter(alternative_phones__contains=[phone]).exists():
                 raise serializers.ValidationError("This phone number is already used as alternative by another teacher.")
         
-        return value
+        return phone
 
     def update(self, instance, validated_data):
-        # Handle subjects - convert comma string to JSON list
         if 'subjects' in validated_data and validated_data['subjects']:
             subject_list = [s.strip() for s in validated_data['subjects'].split(',') if s.strip()]
             instance.subjects = subject_list
             del validated_data['subjects']
         
-        # Handle schools - convert comma string to JSON list
         if 'schools' in validated_data and validated_data['schools']:
             school_list = [s.strip() for s in validated_data['schools'].split(',') if s.strip()]
             instance.schools = school_list
@@ -517,15 +536,19 @@ class TeacherProfileUpdateSerializer(serializers.Serializer):
             if field in validated_data:
                 setattr(instance, field, validated_data[field])
         
-        if 'alternative_email' in validated_data and validated_data['alternative_email']:
+        if 'alternative_email' in validated_data:
             email = validated_data['alternative_email']
-            if email not in instance.alternative_emails:
-                instance.alternative_emails.append(email)
+            if email:
+                instance.alternative_emails = [email]
+            else:
+                instance.alternative_emails = []
         
-        if 'alternative_phone' in validated_data and validated_data['alternative_phone']:
+        if 'alternative_phone' in validated_data:
             phone = validated_data['alternative_phone']
-            if phone not in instance.alternative_phones:
-                instance.alternative_phones.append(phone)
+            if phone:
+                instance.alternative_phones = [phone]
+            else:
+                instance.alternative_phones = []
         
         instance.save()
         return instance
@@ -683,7 +706,7 @@ class LoginSerializer(serializers.Serializer):
         max_length=10,
         validators=[validate_nepali_phone_number]  #  Uses validator
     )
-    password = serializers.CharField(write_only=True)
+    password = serializers.CharField(write_only=True,style={'input_type': 'password'})
 
     def validate_phone_number(self, value):
         return value
