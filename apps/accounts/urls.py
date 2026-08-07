@@ -28,5 +28,8 @@ urlpatterns = [
     path('admin/users/', views.AdminUserListView.as_view(), name='admin-users'),
     path('admin/users/create/', views.AdminUserCreateView.as_view(), name='admin-user-create'),
     path('admin/users/<str:phone_number>/', views.AdminUserUpdateView.as_view(), name='admin-user-update'),
+    path('admin/teachers/<str:phone_number>/verify/', 
+         views.AdminVerifyTeacherView.as_view(), 
+         name='admin-verify-teacher'),
 
 ]

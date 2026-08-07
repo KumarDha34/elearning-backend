@@ -20,6 +20,14 @@ class IsEditor(BasePermission):
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.is_editor
 
+class IsVerifiedTeacher(BasePermission):
+    """Permission for verified teachers only"""
+    message = "Teacher account not verified. Please upload verification document and wait for approval."
+
+    def has_permission(self, request, view):
+        return (request.user.is_authenticated and 
+                request.user.is_instructor and 
+                request.user.is_verified_teacher)
 
 class IsAdminOrReadOnly(BasePermission):
     def has_permission(self, request, view):
@@ -90,5 +98,14 @@ class IsInstructorWithProfile(BasePermission):
     def has_permission(self, request, view):
         return (request.user.is_authenticated and
                 request.user.is_instructor and
+                request.user.profile_completed and
+                request.user.is_active)
+    
+class IsVerifiedInstructorWithProfile(BasePermission):
+    """For instructors who are verified and can perform operations"""
+    def has_permission(self, request, view):
+        return (request.user.is_authenticated and
+                request.user.is_instructor and
+                request.user.is_verified_teacher and
                 request.user.profile_completed and
                 request.user.is_active)

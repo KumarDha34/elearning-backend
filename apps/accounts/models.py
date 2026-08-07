@@ -113,6 +113,15 @@ class User(AbstractUser):
     def is_editor(self):
         return self.role == self.Role.EDITOR
 
+    @property
+    def is_verified_teacher(self):
+        """Check if teacher is verified (document approved)"""
+        if not self.is_instructor:
+            return False
+        if hasattr(self, 'teacher_profile'):
+            return self.teacher_profile.status == 'verified'
+        return False
+
 
 class OTPVerification(models.Model):
     """OTP Verification model"""
@@ -198,7 +207,11 @@ class StudentProfile(models.Model):
     )
     class_level = models.CharField(max_length=50, verbose_name='Class')
     faculty = models.CharField(max_length=100, blank=True, verbose_name='Faculty')
-    address = models.CharField(max_length=100, verbose_name='Address', null=True, help_text='college address: e.g., kalanki')
+    address = models.CharField(
+            max_length=200, 
+            verbose_name='Address',
+            help_text='e.g., Kalanki, Kathmandu'
+        )    
     email = models.EmailField(verbose_name='Email')
     profile_image = models.ImageField(upload_to="images/student", null=True, blank= True)
 
@@ -227,6 +240,10 @@ class StudentProfile(models.Model):
 
 class TeacherProfile(models.Model):
     """Teacher Profile model"""
+
+    class Status(models.TextChoices):
+        NOT_VERIFIED = 'not_verified', 'Not Verified'
+        VERIFIED = 'verified', 'Verified'
     
     user = models.OneToOneField(
         User,
@@ -235,7 +252,12 @@ class TeacherProfile(models.Model):
     )
     
     faculty = models.CharField(max_length=100, verbose_name='Faculty')
-    subject = models.CharField(max_length=100, verbose_name='Subject')
+    subjects = models.JSONField(
+            default=list,
+            blank=True,
+            help_text='List of subjects taught by the teacher',
+            verbose_name='Subjects'
+        )    
     schools = models.TextField(verbose_name='Schools/Colleges', help_text='Comma separated school names')
     email = models.EmailField(verbose_name='Email')
     profile_image = models.ImageField(upload_to="images/teachers", null=True, blank= True)
@@ -255,12 +277,18 @@ class TeacherProfile(models.Model):
     content_limit = models.IntegerField(default=50, verbose_name='Content Limit')
     content_count = models.IntegerField(default=0, verbose_name='Content Count')
     bio = models.TextField(blank=True, verbose_name='Biography')
-    Verification = models.ImageField(upload_to='images', null= True)
+    verification_document = models.ImageField(
+            upload_to='images/teacher_verification',
+            null=True,
+            blank=True,
+            verbose_name='Verification Document'
+        )    
     status = models.CharField(
-            max_length=20,
-            choices=[('not_verified', 'not_verified'), ('verified', 'verified')],
-            default='not_verified'
-        )
+        max_length=20,
+        choices=Status.choices,
+        default=Status.NOT_VERIFIED,
+        verbose_name='Verification Status'
+    )
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -271,3 +299,7 @@ class TeacherProfile(models.Model):
 
     def __str__(self):
         return f"Teacher: {self.user.get_full_name()}"
+
+    def can_perform_operations(self):
+        """Check if teacher can perform content operations"""
+        return self.status == self.Status.VERIFIED

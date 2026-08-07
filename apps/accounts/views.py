@@ -28,7 +28,7 @@ from .serializers import (
     StudentProfileUpdateSerializer, 
     TeacherProfileUpdateSerializer,
     StudentProfileSerializer, AdminUserUpdateSerializer,
-    TeacherProfileSerializer,PasswordResetConfirmSerializer,PasswordResetRequestSerializer
+    TeacherProfileSerializer,PasswordResetConfirmSerializer,PasswordResetRequestSerializer,AdminVerifyTeacherSerializer
 )
 from .permissions import IsAdmin, IsActiveUser, IsPhoneVerified, HasCompletedProfile
 from .models import StudentProfile, TeacherProfile, OTPVerification
@@ -62,7 +62,6 @@ class SignupView(APIView):
                 'step': 1,
                 'next': 'otp_verification',
                 'phone_number': user.phone_number,
-                'otp': otp.otp_code,
                 'user': UserSerializer(user).data,
                 'access': str(refresh.access_token),
                 'refresh': str(refresh),
@@ -100,7 +99,6 @@ class OTPSendView(APIView):
         return Response({
             'message': 'OTP sent successfully.',
             'phone_number': phone_number,
-            'otp': otp.otp_code,
             'expires_in': otp_service.expiry_minutes * 60
         })
 
@@ -199,9 +197,32 @@ class StudentProfileCompleteView(APIView):
     permission_classes = [IsAuthenticated, IsActiveUser, IsPhoneVerified]
     serializer_class = StudentProfileCompleteSerializer
     
-    @extend_schema(request=StudentProfileCompleteSerializer)
+    @extend_schema(
+        request={
+            'multipart/form-data': {
+                'type': 'object',
+                'properties': {
+                    'school_name': {'type': 'string'},
+                    'school_type': {'type': 'string', 'enum': ['school', 'college', 'university']},
+                    'class_level': {'type': 'string'},
+                    'faculty': {'type': 'string'},
+                    'address': {'type': 'string'},
+                    'email': {'type': 'string', 'format': 'email'},
+                    'profile_image': {'type': 'string', 'format': 'binary'},
+                    'password': {'type': 'string', 'format': 'password'},
+                    'password_confirm': {'type': 'string', 'format': 'password'},
+                },
+                'required': ['school_name', 'class_level', 'address', 'email', 'password', 'password_confirm']
+            }
+        },
+        responses={200: UserSerializer}
+    )
     @transaction.atomic
     def post(self, request):
+        data = request.data.copy()
+        if 'profile_image' in request.FILES:
+            data['profile_image'] = request.FILES['profile_image']
+
         user = request.user
         
         if not user.is_student:
@@ -232,9 +253,9 @@ class StudentProfileCompleteView(APIView):
             school_type=data.get('school_type', 'school'),
             class_level=data['class_level'],
             faculty=data.get('faculty', ''),
-            district=data['district'],
-            municipality=data['municipality'],
-            email=data['email']
+            address=data['address'],
+            email=data['email'],
+            profile_image=data.get('profile_image')
         )
         
         user.set_password(data['password'])
@@ -258,9 +279,34 @@ class TeacherProfileCompleteView(APIView):
     permission_classes = [IsAuthenticated, IsActiveUser, IsPhoneVerified]
     serializer_class = TeacherProfileCompleteSerializer
     
-    @extend_schema(request=TeacherProfileCompleteSerializer)
+    @extend_schema(
+                request={
+                    'multipart/form-data': {
+                        'type': 'object',
+                        'properties': {
+                            'faculty': {'type': 'string'},
+                            'subjects': {'type': 'string', 'description': 'Comma-separated list of subjects'},
+                            'schools': {'type': 'string', 'description': 'Comma-separated list of schools'},
+                            'email': {'type': 'string', 'format': 'email'},
+                            'bio': {'type': 'string', 'description': 'Short biography'},
+                            'profile_image': {'type': 'string', 'format': 'binary'},
+                            'verification_document': {'type': 'string', 'format': 'binary'},
+                            'password': {'type': 'string', 'format': 'password'},
+                            'password_confirm': {'type': 'string', 'format': 'password'},
+                            
+                        },
+                        'required': ['faculty', 'subjects', 'schools', 'email','verification_document', 'password', 'password_confirm']
+                    }
+                },
+                responses={200: UserSerializer}
+            )
     @transaction.atomic
     def post(self, request):
+        data = {}
+        if 'profile_image' in request.FILES:
+            data['profile_image'] = request.FILES['profile_image']
+        if 'verification_document' in request.FILES:
+            data['verification_document'] = request.FILES['verification_document']
         user = request.user
         
         if not user.is_instructor:
@@ -284,14 +330,19 @@ class TeacherProfileCompleteView(APIView):
         )
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
+
+        subject_list = [s.strip() for s in data['subjects'].split(',') if s.strip()]
+        school_list = [s.strip() for s in data['schools'].split(',') if s.strip()]
         
         TeacherProfile.objects.create(
             user=user,
             faculty=data['faculty'],
-            subject=data['subject'],
-            schools=data['schools'],
+            subjects=subject_list, 
+            schools=school_list,
             email=data['email'],
-            bio=data.get('bio', '')
+            bio=data.get('bio', ''),
+            profile_image=data.get('profile_image'),
+            verification_document=data.get('verification_document'),
         )
         
         user.set_password(data['password'])
@@ -305,6 +356,7 @@ class TeacherProfileCompleteView(APIView):
         return Response({
             'message': 'Teacher profile completed successfully!',
             'profile_completed': True,
+            'status': 'not_verified',
             'user': UserSerializer(user).data,
             'access': str(refresh.access_token),
             'refresh': str(refresh),
@@ -326,8 +378,29 @@ class StudentProfileUpdateView(APIView):
     permission_classes = [IsAuthenticated, IsActiveUser, HasCompletedProfile]
     serializer_class = StudentProfileUpdateSerializer
     
-    @extend_schema(request=StudentProfileUpdateSerializer)
+    @extend_schema(
+            request={
+                'multipart/form-data': {
+                    'type': 'object',
+                    'properties': {
+                        'school_name': {'type': 'string'},
+                        'school_type': {'type': 'string', 'enum': ['school', 'college', 'university']},
+                        'class_level': {'type': 'string'},
+                        'faculty': {'type': 'string'},
+                        'address': {'type': 'string'},
+                        'profile_image': {'type': 'string', 'format': 'binary'},
+                        'alternative_email': {'type': 'string', 'format': 'email'},
+                        'alternative_phone': {'type': 'string'},
+                    },
+                }
+            },
+            responses={200: UserSerializer}
+        )
     def patch(self, request):
+        data = request.data.copy()
+        if 'profile_image' in request.FILES:
+            data['profile_image'] = request.FILES['profile_image']
+
         user = request.user
         
         if not user.is_student:
@@ -370,8 +443,32 @@ class TeacherProfileUpdateView(APIView):
     permission_classes = [IsAuthenticated, IsActiveUser, HasCompletedProfile]
     serializer_class = TeacherProfileUpdateSerializer
     
-    @extend_schema(request=TeacherProfileUpdateSerializer)
+    @extend_schema(
+            request={
+                'multipart/form-data': {
+                    'type': 'object',
+                    'properties': {
+                        'faculty': {'type': 'string'},
+                        'subjects': {'type': 'string', 'description': 'Comma-separated list of subjects'},
+                        'schools': {'type': 'string', 'description': 'Comma-separated list of schools'},
+                        'bio': {'type': 'string', 'description': 'Short biography'},
+                        'profile_image': {'type': 'string', 'format': 'binary'},
+                        'alternative_email': {'type': 'string', 'format': 'email'},
+                        'alternative_phone': {'type': 'string'},
+                        
+                    },
+                    # 'required': ['subjects', 'schools', 'bio', 'alternative_email', 'alternative_phone']
+                }
+            },
+            responses={200: UserSerializer}
+        )
     def patch(self, request):
+        data = request.data.copy()
+        if 'profile_image' in request.FILES:
+            data['profile_image'] = request.FILES['profile_image']
+        if 'verification_document' in request.FILES:
+            data['verification_document'] = request.FILES['verification_document']
+
         user = request.user
         
         if not user.is_instructor:
@@ -475,30 +572,59 @@ class TokenRefreshView(APIView):
 
 class PasswordResetRequestView(APIView):
     """
-    POST /api/v1/auth/password/reset/ - Request password reset OTP
+    POST /api/v1/auth/password/reset/
     """
     permission_classes = [AllowAny]
     serializer_class = PasswordResetRequestSerializer
-    
+
     @extend_schema(request=PasswordResetRequestSerializer)
     def post(self, request):
-        serializer = PasswordResetRequestSerializer(data=request.data)
+        serializer = PasswordResetRequestSerializer(
+            data=request.data,
+            context={"request": request}
+        )
         serializer.is_valid(raise_exception=True)
-        
-        phone_number = serializer.validated_data['phone_number']
-        user = User.objects.filter(phone_number=phone_number, is_active=True).first()
-        
-        if user:
-            otp = otp_service.generate_otp(phone_number, OTPVerification.Purpose.PASSWORD_RESET)
+        validated_data = serializer.validated_data
+        # SCENARIO 1: Authenticated User (Change Password)
+        if request.user.is_authenticated:
+            user = request.user
+            new_password = validated_data["new_password"]
+
+            user.set_password(new_password)
+            user.save()
+
+            logger.info(f"User {user.phone_number} changed password successfully")
+
             return Response({
-                'message': 'Password reset OTP sent.',
-                'phone_number': phone_number,
-                'otp': otp.otp_code 
-            })
-        
+                "message": "Password changed successfully.",
+                "action": "change_password"
+            }, status=status.HTTP_200_OK)
+
+        # SCENARIO 2: Unauthenticated User (Forgot Password)
+        phone_number = validated_data["phone_number"]
+
+        user = User.objects.filter(
+            phone_number=phone_number,
+            is_active=True
+        ).first()
+
+        if user:
+            otp_service.generate_otp(
+                phone_number,
+                OTPVerification.Purpose.PASSWORD_RESET
+            )
+
+            logger.info(f"Password reset OTP sent to {phone_number}")
+
+            return Response({
+                "message": "Password reset OTP sent to your registered phone number.",
+                "phone_number": phone_number,
+                "action": "forgot_password"
+            }, status=status.HTTP_200_OK)
+
         return Response({
-            'message': 'If an account exists, OTP has been sent.'
-        })
+            "message": "If an account exists, OTP has been sent."
+        }, status=status.HTTP_200_OK)
 
 class PasswordResetConfirmView(APIView):
     """
@@ -682,5 +808,75 @@ class AdminUserUpdateView(APIView):
         
         return Response({
             'message': 'User updated successfully.',
+            'user': UserSerializer(user).data
+        }, status=status.HTTP_200_OK)
+
+class AdminVerifyTeacherView(APIView):
+    """
+    PATCH /api/v1/auth/admin/teachers/{phone_number}/verify/
+    Admin can verify or unverify a teacher
+    
+    Request Body:
+        {
+            "verified": true  // true = verified, false = not_verified
+        }
+    """
+    permission_classes = [IsAdmin]
+    serializer_class = AdminVerifyTeacherSerializer  # ✅ ADD THIS
+    
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name='phone_number',
+                location='path',
+                description='Phone number of the teacher (10 digits)',
+                required=True,
+                type=OpenApiTypes.STR
+            )
+        ],
+        request=AdminVerifyTeacherSerializer,  # ✅ USE THE SERIALIZER
+        responses={
+            200: UserSerializer,
+            400: OpenApiTypes.OBJECT,
+            404: OpenApiTypes.OBJECT
+        }
+    )
+    def patch(self, request, phone_number):
+        # ✅ Validate with the serializer
+        serializer = AdminVerifyTeacherSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        verified = serializer.validated_data['verified']
+        
+        try:
+            user = User.objects.get(phone_number=phone_number)
+        except User.DoesNotExist:
+            return Response({
+                'error': f'User not found with phone number: {phone_number}'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        if not user.is_instructor:
+            return Response({
+                'error': 'This user is not a teacher.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not hasattr(user, 'teacher_profile'):
+            return Response({
+                'error': 'Teacher profile not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        profile = user.teacher_profile
+        if verified:
+            profile.status = TeacherProfile.Status.VERIFIED
+            message = f'Teacher {phone_number} has been verified.'
+        else:
+            profile.status = TeacherProfile.Status.NOT_VERIFIED
+            message = f'Teacher {phone_number} has been unverified.'
+        
+        profile.save(update_fields=['status'])
+        
+        logger.info(f"Admin {request.user.phone_number} {message}")
+        
+        return Response({
+            'message': message,
             'user': UserSerializer(user).data
         }, status=status.HTTP_200_OK)
