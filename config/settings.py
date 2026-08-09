@@ -10,6 +10,7 @@ OpenAPI docs, and a role-based permission layer (see apps/accounts/permissions.p
 import os
 from datetime import timedelta
 from pathlib import Path
+from datetime import timedelta
 
 from dotenv import load_dotenv
 
@@ -38,9 +39,31 @@ INSTALLED_APPS = [
     "django_celery_beat",
     "drf_spectacular",
     # Local apps
-    # "apps.accounts",
+    "apps.accounts",
 ]
 
+AUTH_USER_MODEL = 'accounts.User'
+
+
+
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+}
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.AllowAny',
+    ),
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "corsheaders.middleware.CorsMiddleware",
@@ -78,15 +101,14 @@ WSGI_APPLICATION = "config.wsgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.environ.get("POSTGRES_DB", "elearning"),
-        "USER": os.environ.get("POSTGRES_USER", "elearning"),
-        "PASSWORD": os.environ.get("POSTGRES_PASSWORD", "elearning"),
-        "HOST": os.environ.get("POSTGRES_HOST", "localhost"),
-        "PORT": os.environ.get("POSTGRES_PORT", "5432"),
+        "NAME": os.environ.get("POSTGRES_DB"),
+        "USER": os.environ.get("POSTGRES_USER",),
+        "PASSWORD": os.environ.get("POSTGRES_PASSWORD"),
+        "HOST": os.environ.get("POSTGRES_HOST"),
+        "PORT": os.environ.get("POSTGRES_PORT"),
     }
 }
 
-# AUTH_USER_MODEL = "accounts.User"
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
@@ -144,7 +166,6 @@ REST_FRAMEWORK = {
         "password_reset": "5/hour",
     },
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
-    "EXCEPTION_HANDLER": "apps.common.exceptions.custom_exception_handler",
 }
 
 SPECTACULAR_SETTINGS = {
@@ -152,6 +173,16 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "Complete Module API",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    "DISPLAY_CURL": False,  
+    "SWAGGER_UI_SETTINGS": {
+        "persistAuthorization": True,
+        "displayRequestDuration": True,
+        "filter": True,
+        "showCommonExtensions": True,
+        "displayOperationId": False,
+    },
+    "COMPONENT_SPLIT_REQUEST": True,
+    "SCHEMA_PATH_PREFIX": "/api/v1",
 }
 
 # ---------------------------------------------------------------------------
@@ -216,6 +247,9 @@ USE_TZ = True
 STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+
+MEDIA_ROOT = BASE_DIR/'media'
+MEDIA_URL='/media/'
 # ---------------------------------------------------------------------------
 # Logging — surfaces OTP/SMS/auth failures without leaking secrets
 # ---------------------------------------------------------------------------
