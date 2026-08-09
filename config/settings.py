@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     "drf_spectacular",
     # Local apps
     "apps.accounts",
+    "apps.academics",
 ]
 
 AUTH_USER_MODEL = 'accounts.User'
