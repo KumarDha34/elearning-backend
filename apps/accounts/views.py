@@ -95,16 +95,27 @@ class OTPSendView(APIView):
 
         if not user:
             return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
-
-        if user.phone_verified:
-            return Response({'error': 'Phone already verified.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # ✅ Allow OTP if phone verified BUT profile NOT completed
+        if user.phone_verified and user.profile_completed:
+            return Response({
+                'error': 'Phone already verified and profile completed. Please login.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # ✅ If phone verified but profile not complete, still send OTP
+        # (This allows users who verified phone but never completed profile)
+        if user.phone_verified and not user.profile_completed:
+            # Allow OTP for profile completion
+            pass
 
         otp = otp_service.generate_otp(phone_number, OTPVerification.Purpose.SIGNUP)
 
         return Response({
             'message': 'OTP sent successfully.',
             'phone_number': phone_number,
-            'expires_in': otp_service.expiry_minutes * 60
+            'expires_in': otp_service.expiry_minutes * 60,
+            'phone_verified': user.phone_verified,
+            'profile_completed': user.profile_completed
         }, status=status.HTTP_200_OK)
 
 
@@ -327,42 +338,73 @@ class TeacherProfileCompleteView(APIView):
                 'error': 'Profile already completed.'
             }, status=status.HTTP_400_BAD_REQUEST)
 
+        data = {}
+        
+        for key, value in request.data.items():
+            if key not in ['profile_image', 'verification_document']:
+                data[key] = value
+        
+        for key, value in request.FILES.items():
+            data[key] = value
+        
+        if 'subjects' in data and isinstance(data['subjects'], str):
+            subjects_str = data['subjects']
+            subjects_str = subjects_str.strip('[]')
+            if subjects_str:
+                data['subjects'] = [int(x.strip()) for x in subjects_str.split(',') if x.strip()]
+            else:
+                data['subjects'] = []
+        
+        if 'schools' in data and isinstance(data['schools'], str):
+            schools_str = data['schools']
+            schools_str = schools_str.strip('[]')
+            if schools_str:
+                data['schools'] = [int(x.strip()) for x in schools_str.split(',') if x.strip()]
+            else:
+                data['schools'] = []
+        
+        if 'faculty' in data and isinstance(data['faculty'], str):
+            try:
+                data['faculty'] = int(data['faculty'])
+            except ValueError:
+                pass
+
         serializer = TeacherProfileCompleteSerializer(
-            data=request.data,
+            data=data, 
             context={'user': user}
         )
         serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
+        validated_data = serializer.validated_data
 
-
+        # Create TeacherProfile
         teacher_profile = TeacherProfile.objects.create(
             user=user,
-            faculty=data['faculty'],
-            email=data['email'],
-            bio=data.get('bio', ''),
-            profile_image=data.get('profile_image'),
-            verification_document=data.get('verification_document'),
-            # status=TeacherProfile.Status.NOT_VERIFIED  
+            faculty=validated_data['faculty'],
+            email=validated_data['email'],
+            bio=validated_data.get('bio', ''),
+            profile_image=validated_data.get('profile_image'),
+            verification_document=validated_data.get('verification_document'),
         )
 
-        if data.get('subjects'):
-            teacher_profile.subjects.set(data['subjects'])
+        if validated_data.get('subjects'):
+            teacher_profile.subjects.set(validated_data['subjects'])
 
-        if data.get('schools'):
+        if validated_data.get('schools'):
             from apps.academics.models import TeacherSchool
             from django.utils import timezone
             
-            for school in data['schools']:
+            for school in validated_data['schools']:
                 TeacherSchool.objects.create(
                     teacher=teacher_profile,
                     school=school,
                     joined_at=timezone.now()
                 )
-                
-        user.set_password(data['password'])
+
+        # Set password and complete profile
+        user.set_password(validated_data['password'])
         user.profile_completed = True
         user.signup_step = 3
-        user.email = data['email']
+        user.email = validated_data['email']
         user.save(update_fields=['profile_completed', 'signup_step', 'email', 'password'])
 
         refresh = RefreshToken.for_user(user)
@@ -372,7 +414,7 @@ class TeacherProfileCompleteView(APIView):
             'profile_completed': True,
             'status': teacher_profile.status,
             'user': UserSerializer(user).data,
-            'profile': TeacherProfileSerializer(teacher_profile).data,  
+            'profile': TeacherProfileSerializer(teacher_profile).data,
             'access': str(refresh.access_token),
             'refresh': str(refresh),
         }, status=status.HTTP_200_OK)
@@ -549,15 +591,17 @@ class MeView(RetrieveAPIView):
     def get_object(self):
         user = self.request.user
 
-        # Use select_related and prefetch_related for optimization
         if user.is_student and hasattr(user, 'student_profile'):
             StudentProfile.objects.select_related(
                 'school', 'class_level', 'faculty'
             ).get(user=user)
 
         elif user.is_instructor and hasattr(user, 'teacher_profile'):
-            TeacherProfile.objects.prefetch_related(
-                'subjects', 'schools'
+            TeacherProfile.objects.select_related(
+                'faculty'
+            ).prefetch_related(
+                'subjects', 
+                'teacher_schools__school' 
             ).get(user=user)
 
         return user
