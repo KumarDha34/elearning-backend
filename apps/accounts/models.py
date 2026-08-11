@@ -2,8 +2,8 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils import timezone
 from .managers import UserManager
+from django.utils.translation import gettext_lazy as _
 from .validators import validate_nepali_phone_number
-
 
 class User(AbstractUser):
     """Custom User Model with phone as primary identifier"""
@@ -29,6 +29,7 @@ class User(AbstractUser):
     )
     
     # Role and status
+    password = models.CharField(max_length=200, blank=True, null=True)
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.STUDENT)
     phone_verified = models.BooleanField(default=False)
     profile_completed = models.BooleanField(default=False)
@@ -198,15 +199,22 @@ class StudentProfile(models.Model):
         on_delete=models.CASCADE,
         related_name='student_profile'
     )
+    school = models.ForeignKey(
+        'academics.School',  
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name=_("School/College"),
+        related_name='student_profiles')
     
-    school_name = models.CharField(max_length=200, verbose_name='School/College Name')
+    
     school_type = models.CharField(
         max_length=20,
         choices=[('school', 'School'), ('college', 'College'), ('university', 'university')],
         default='school'
     )
-    class_level = models.CharField(max_length=50, verbose_name='Class')
-    faculty = models.CharField(max_length=100, blank=True, verbose_name='Faculty')
+    class_level = models.ForeignKey('academics.ClassLevel', verbose_name=_("class_level"), on_delete=models.SET_NULL, null=True,)
+    faculty =models.ForeignKey('academics.Faculty', verbose_name=_("faculty"), on_delete=models.SET_NULL, null=True,)
     address = models.CharField(
             max_length=200, 
             verbose_name='Address',
@@ -251,17 +259,11 @@ class TeacherProfile(models.Model):
         related_name='teacher_profile'
     )
     
-    faculty = models.CharField(max_length=100, verbose_name='Faculty')
-    subjects = models.JSONField(
-            default=list,
-            blank=True,
-            help_text='List of subjects taught by the teacher',
-            verbose_name='Subjects'
-        )    
-    schools = models.TextField(verbose_name='Schools/Colleges', help_text='Comma separated school names')
+    faculty =models.ForeignKey('academics.Faculty', verbose_name=_("faculty"), on_delete=models.SET_NULL, null=True,)
+    subjects = models.ManyToManyField('academics.Subject', verbose_name=_("Subjects"), related_name='teachers', blank=True, help_text=_("Subjects taught by the teacher"))    
+    # schools = models.ManyToManyField('academics.School', verbose_name=_("Schools/Colleges"), related_name='teacher_profiles', blank=True, help_text=_("Schools/Colleges the teacher is associated with"))    
     email = models.EmailField(verbose_name='Email')
     profile_image = models.ImageField(upload_to="images/teachers", null=True, blank= True)
-
     alternative_emails = models.JSONField(
         default=list,
         blank=True,
@@ -303,3 +305,8 @@ class TeacherProfile(models.Model):
     def can_perform_operations(self):
         """Check if teacher can perform content operations"""
         return self.status == self.Status.VERIFIED
+    
+    @property
+    def schools(self):
+        """Get all schools for this teacher through TeacherSchool"""
+        return [ts.school for ts in self.teacher_schools.all()]

@@ -1,6 +1,8 @@
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
+
 
 
 class School(models.Model):
@@ -55,9 +57,9 @@ class ClassLevel(models.Model):
     """Class levels 10 ,11, 12, Bachelor, Master"""
     
     class LevelType(models.TextChoices):
-        SEE = 'SEE', 'SEE (Grade 10)'
-        PLUS_TWO = '+2', '+2 (Grade 11-12)'
-        BACHELOR = 'bachelor', 'Bachelor'
+        SEE = 'SEE', _('SEE (Grade 10)')
+        PLUS_TWO = '+2', _('+2 (Grade 11-12)')
+        BACHELOR = 'bachelor', _('Bachelor')
     
     name = models.CharField(max_length=50, verbose_name='Class Name')
     level_type = models.CharField(
