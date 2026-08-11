@@ -21,6 +21,7 @@ from apps.accounts.permissions import IsAdmin, IsAdminOrReadOnly
 class SchoolListCreateView(APIView):
     """GET /schools/ - List schools | POST /schools/ - Create school (Admin)"""
     permission_classes = [IsAdminOrReadOnly]
+    serializer_class = SchoolSerializer
 
     @extend_schema(
         summary="List Schools",
@@ -88,6 +89,7 @@ class SchoolListCreateView(APIView):
 class SchoolDetailView(APIView):
     """GET /schools/{id}/ - Get school | PATCH /schools/{id}/ - Update school"""
     permission_classes = [IsAdminOrReadOnly]
+    serializer_class = SchoolSerializer
 
     def get_object(self, pk):
         return get_object_or_404(School, pk=pk)
@@ -170,6 +172,7 @@ class SchoolVerifyView(APIView):
 class VerifiedSchoolsView(APIView):
     """GET /schools/verified/ - Get verified schools"""
     permission_classes = []
+    serializer_class = SchoolSerializer
 
     @extend_schema(summary="Get Verified Schools")
     def get(self, request):
@@ -181,6 +184,7 @@ class VerifiedSchoolsView(APIView):
 class MySchoolsView(APIView):
     """GET /schools/my_schools/ - Get schools created by current user"""
     permission_classes = [IsAuthenticated]
+    serializer_class = SchoolSerializer
 
     @extend_schema(summary="Get My Created Schools")
     def get(self, request):
@@ -194,6 +198,7 @@ class MySchoolsView(APIView):
 class FacultyListCreateView(APIView):
     """GET /faculties/ - List faculties | POST /faculties/ - Create faculty (Admin)"""
     permission_classes = [IsAdminOrReadOnly]
+    serializer_class = FacultySerializer
 
     @extend_schema(
         summary="List Faculties",
@@ -243,6 +248,7 @@ class FacultyListCreateView(APIView):
 class FacultyDetailView(APIView):
     """GET /faculties/{id}/ - Get faculty | PATCH /faculties/{id}/ - Update faculty (Admin)"""
     permission_classes = [IsAdminOrReadOnly]
+    serializer_class = FacultySerializer
 
     def get_object(self, pk):
         return get_object_or_404(Faculty, pk=pk)
@@ -293,6 +299,7 @@ class FacultyDetailView(APIView):
 class ClassLevelListCreateView(APIView):
     """GET /class-levels/ - List class levels | POST /class-levels/ - Create (Admin)"""
     permission_classes = [IsAdminOrReadOnly]
+    serializer_class = ClassLevelSerializer
 
     @extend_schema(
         summary="List Class Levels",
@@ -349,6 +356,7 @@ class ClassLevelListCreateView(APIView):
 class ClassLevelDetailView(APIView):
     """GET /class-levels/{id}/ - Get class level | PATCH /class-levels/{id}/ - Update (Admin)"""
     permission_classes = [IsAdminOrReadOnly]
+    serializer_class = ClassLevelSerializer
 
     def get_object(self, pk):
         return get_object_or_404(ClassLevel, pk=pk)
@@ -399,6 +407,7 @@ class ClassLevelDetailView(APIView):
 class SubjectListCreateView(APIView):
     """GET /subjects/ - List subjects | POST /subjects/ - Create subject (Admin)"""
     permission_classes = [IsAdminOrReadOnly]
+    serializer_class = SubjectSerializer
 
     @extend_schema(
         summary="List Subjects",
@@ -464,6 +473,7 @@ class SubjectListCreateView(APIView):
 class SubjectDetailView(APIView):
     """GET /subjects/{id}/ - Get subject | PATCH /subjects/{id}/ - Update subject (Admin)"""
     permission_classes = [IsAdminOrReadOnly]
+    serializer_class = SubjectSerializer
 
     def get_object(self, pk):
         return get_object_or_404(Subject.objects.select_related('faculty', 'class_level'), pk=pk)
@@ -510,6 +520,7 @@ class SubjectDetailView(APIView):
 class SubjectsByFacultyView(APIView):
     """GET /subjects/by_faculty/?faculty_id={id} - Get subjects by faculty"""
     permission_classes = []
+    serializer_class = SubjectSerializer
 
     @extend_schema(
         summary="Get Subjects by Faculty",
@@ -532,6 +543,7 @@ class SubjectsByFacultyView(APIView):
 class SubjectsByClassLevelView(APIView):
     """GET /subjects/by_class_level/?class_level_id={id} - Get subjects by class level"""
     permission_classes = []
+    serializer_class = SubjectSerializer
 
     @extend_schema(
         summary="Get Subjects by Class Level",
@@ -558,6 +570,7 @@ class SubjectsByClassLevelView(APIView):
 class TeacherSchoolListView(APIView):
     """GET /teacher-schools/ - List teacher-school affiliations"""
     permission_classes = [IsAuthenticated]
+    serializer_class = TeacherSchoolSerializer
 
     @extend_schema(
         summary="List Teacher-School Affiliations",
@@ -591,6 +604,7 @@ class TeacherSchoolListView(APIView):
 class MyTeacherSchoolsView(APIView):
     """GET /teacher-schools/my_schools/ - Get schools for current teacher"""
     permission_classes = [IsAuthenticated]
+    serializer_class = TeacherSchoolSerializer
 
     @extend_schema(summary="Get My Schools")
     def get(self, request):
