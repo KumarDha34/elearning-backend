@@ -36,6 +36,7 @@ from .serializers import (
 from .permissions import IsAdmin, IsActiveUser, IsPhoneVerified, HasCompletedProfile
 from .models import StudentProfile, TeacherProfile, OTPVerification
 from .services import otp_service
+from apps.academics.models import School
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -223,6 +224,7 @@ class StudentProfileCompleteView(APIView):
                 'type': 'object',
                 'properties': {
                     'school': {'type': 'integer', 'description': 'School ID'},
+                    'school_name': {'type': 'string', 'description': 'School name (use this if adding new school)'},
                     'school_type': {'type': 'string', 'enum': ['school', 'college', 'university']},
                     'class_level': {'type': 'integer', 'description': 'Class Level ID'},
                     'faculty': {'type': 'integer', 'description': 'Faculty ID'},
@@ -263,17 +265,58 @@ class StudentProfileCompleteView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
+
+        school = data.get('school')
+        school_name = data.get('school_name')
+        
+        # ✅ If school_name is provided, create or get existing school
+        if school_name and school_name.strip():
+            # Check if school already exists by name (case-insensitive)
+            existing_school = School.objects.filter(
+                name__iexact=school_name.strip()
+            ).first()
+            
+            if existing_school:
+                # Use existing school (preserve its verification status)
+                school = existing_school
+                logger.info(f"Student {user.phone_number} used existing school: {school_name}")
+            else:
+                # Create new school with is_verified=False
+                school = School.objects.create(
+                    name=school_name.strip(),
+                    address=data.get('address', ''),
+                    school_type=data.get('school_type', 'school'),
+                    is_verified=False,  # ⏳ Needs admin verification
+                    created_by=user
+                )
+                logger.info(f"Student {user.phone_number} created new school: {school_name} (unverified)")
+        
+        # ✅ If only school ID is provided (existing school)
+        elif school:
+            try:
+                school = School.objects.get(id=school.id)
+            except School.DoesNotExist:
+                return Response({
+                    'error': 'Selected school does not exist.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # ✅ Neither provided
+        else:
+            return Response({
+                'error': 'Either school ID or school name is required.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
         # Create StudentProfile
         StudentProfile.objects.create(
-            user=user,
-            school=data.get('school'),
-            school_type=data.get('school_type', 'school'),
-            class_level=data.get('class_level'),
-            faculty=data.get('faculty'),
-            address=data['address'],
-            email=data['email'],
-            profile_image=data.get('profile_image')
-        )
+                    user=user,
+                    school=school,
+                    school_type=data.get('school_type', 'school'),
+                    class_level=data.get('class_level'),
+                    faculty=data.get('faculty'),
+                    address=data['address'],
+                    email=data['email'],
+                    profile_image=data.get('profile_image')
+                )
 
         user.set_password(data['password'])
         user.profile_completed = True
@@ -286,6 +329,12 @@ class StudentProfileCompleteView(APIView):
         return Response({
             'message': 'Student profile completed successfully!',
             'profile_completed': True,
+            'school': {
+                'id': school.id,
+                'name': school.name,
+                'is_verified': school.is_verified,
+                'needs_verification': not school.is_verified
+            },
             'user': UserSerializer(user).data,
             'access': str(refresh.access_token),
             'refresh': str(refresh),

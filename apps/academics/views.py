@@ -18,18 +18,28 @@ from apps.accounts.permissions import IsAdmin, IsAdminOrReadOnly
 # ============================================================================
 # SCHOOLS
 # ============================================================================
+
 class SchoolListCreateView(APIView):
-    """GET /schools/ - List schools | POST /schools/ - Create school (Admin)"""
+    """
+    GET /schools/ - List schools with filters
+    POST /schools/ - Create a new school (Admin only, auto-verified)
+    """
     permission_classes = [IsAdminOrReadOnly]
     serializer_class = SchoolSerializer
 
     @extend_schema(
         summary="List Schools",
+        operation_id="schools_list",
+        description="Get a paginated list of schools with optional filters",
         parameters=[
             OpenApiParameter(name='search', description='Search by name', required=False, type=str),
-            OpenApiParameter(name='school_type', description='Filter by school type', required=False, type=str),
+            OpenApiParameter(name='school_type', description='Filter by school type (School, College, University)', required=False, type=str),
             OpenApiParameter(name='is_verified', description='Filter by verification status', required=False, type=bool),
-        ]
+        ],
+        responses={
+            200: SchoolSerializer(many=True),
+            400: OpenApiResponse(description="Invalid filter parameters"),
+        }
     )
     def get(self, request):
         queryset = School.objects.all()
@@ -45,16 +55,18 @@ class SchoolListCreateView(APIView):
         if is_verified is not None:
             queryset = queryset.filter(is_verified=is_verified.lower() == 'true')
 
-        serializer = SchoolSerializer(queryset, many=True)
+        serializer = self.serializer_class(queryset, many=True)
         return Response(serializer.data)
 
     @extend_schema(
         summary="Create School (Admin only)",
+        operation_id="schools_create",
+        description="Create a new school. Only admins can create schools. New schools are automatically verified.",
         request=SchoolSerializer,
         responses={
             201: SchoolSerializer,
             400: OpenApiResponse(description="Validation error"),
-            403: OpenApiResponse(description="Permission denied"),
+            403: OpenApiResponse(description="Permission denied - Admin only"),
         },
         examples=[
             OpenApiExample(
@@ -68,16 +80,14 @@ class SchoolListCreateView(APIView):
         ]
     )
     def post(self, request):
-        # ✅ Only admins can create schools
         if not request.user.is_admin:
             return Response(
                 {'error': 'Only admins can create schools.'},
                 status=status.HTTP_403_FORBIDDEN
             )
         
-        serializer = SchoolSerializer(data=request.data)
+        serializer = self.serializer_class(data=request.data)
         if serializer.is_valid():
-            # ✅ Auto-verify when created by admin
             serializer.save(
                 created_by=request.user,
                 is_verified=True
@@ -87,21 +97,34 @@ class SchoolListCreateView(APIView):
 
 
 class SchoolDetailView(APIView):
-    """GET /schools/{id}/ - Get school | PATCH /schools/{id}/ - Update school"""
+    """
+    GET /schools/{id}/ - Get school details
+    PATCH /schools/{id}/ - Update school (Admin or Creator only)
+    """
     permission_classes = [IsAdminOrReadOnly]
     serializer_class = SchoolSerializer
 
     def get_object(self, pk):
         return get_object_or_404(School, pk=pk)
 
-    @extend_schema(summary="Get School Details")
+    @extend_schema(
+        summary="Get School Details",
+        operation_id="schools_retrieve",
+        description="Get detailed information about a specific school",
+        responses={
+            200: SchoolSerializer,
+            404: OpenApiResponse(description="School not found"),
+        }
+    )
     def get(self, request, pk):
         school = self.get_object(pk)
-        serializer = SchoolSerializer(school)
+        serializer = self.serializer_class(school)
         return Response(serializer.data)
 
     @extend_schema(
-        summary="Partial Update School (Admin or Creator only)",
+        summary="Partial Update School",
+        operation_id="schools_update",
+        description="Update specific fields of a school. Only admins or the school creator can update.",
         request=SchoolSerializer,
         responses={
             200: SchoolSerializer,
@@ -116,7 +139,7 @@ class SchoolDetailView(APIView):
                     "name": "Updated School Name",
                     "address": "New Address",
                     "school_type": "College",
-                    "is_verified": False  # Admin can change verification status
+                    "is_verified": False
                 }
             )
         ]
@@ -124,14 +147,13 @@ class SchoolDetailView(APIView):
     def patch(self, request, pk):
         school = self.get_object(pk)
         
-        # ✅ Only admin or creator can update
         if not request.user.is_admin and school.created_by != request.user:
             return Response(
                 {'error': 'You do not have permission to update this school.'},
                 status=status.HTTP_403_FORBIDDEN
             )
         
-        serializer = SchoolSerializer(school, data=request.data, partial=True)
+        serializer = self.serializer_class(school, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
@@ -139,26 +161,23 @@ class SchoolDetailView(APIView):
 
 
 class SchoolVerifyView(APIView):
-    """POST /schools/{id}/verify/ - Verify school (Admin only)"""
+    """
+    POST /schools/{id}/verify/ - Verify a school
+    """
     permission_classes = [IsAdmin]
 
     @extend_schema(
         summary="Verify School (Admin only)",
+        operation_id="schools_verify",
+        description="Mark a school as verified. Only admins can perform this action.",
         request=None,
         responses={
             200: SchoolSerializer,
-            403: OpenApiResponse(description="Permission denied"),
+            403: OpenApiResponse(description="Permission denied - Admin only"),
             404: OpenApiResponse(description="School not found"),
         }
     )
     def post(self, request, pk):
-        # ✅ Only admins can verify
-        if not request.user.is_admin:
-            return Response(
-                {'error': 'Only admins can verify schools.'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
         school = get_object_or_404(School, pk=pk)
         school.is_verified = True
         school.save(update_fields=['is_verified'])
@@ -169,58 +188,89 @@ class SchoolVerifyView(APIView):
         })
 
 
-class VerifiedSchoolsView(APIView):
-    """GET /schools/verified/ - Get verified schools"""
-    permission_classes = []
-    serializer_class = SchoolSerializer
+# class VerifiedSchoolsView(APIView):
+#     """
+#     GET /schools/verified/ - Get all verified schools
+#     """
+#     permission_classes = []
+#     serializer_class = SchoolSerializer
 
-    @extend_schema(summary="Get Verified Schools")
-    def get(self, request):
-        schools = School.objects.filter(is_verified=True)
-        serializer = SchoolSerializer(schools, many=True)
-        return Response(serializer.data)
+#     @extend_schema(
+#         summary="Get Verified Schools",
+#         operation_id="schools_verified_list",
+#         description="Get a list of all verified schools",
+#         responses={
+#             200: SchoolSerializer(many=True),
+#         }
+#     )
+#     def get(self, request):
+#         schools = School.objects.filter(is_verified=True)
+#         serializer = self.serializer_class(schools, many=True)
+#         return Response(serializer.data)
 
 
 class MySchoolsView(APIView):
-    """GET /schools/my_schools/ - Get schools created by current user"""
+    """
+    GET /schools/my_schools/ - Get schools created by current user
+    """
     permission_classes = [IsAuthenticated]
     serializer_class = SchoolSerializer
 
-    @extend_schema(summary="Get My Created Schools")
+    @extend_schema(
+        summary="Get My Created Schools",
+        operation_id="schools_my_list",
+        description="Get a list of schools created by the current authenticated user",
+        responses={
+            200: SchoolSerializer(many=True),
+            401: OpenApiResponse(description="Authentication required"),
+        }
+    )
     def get(self, request):
         schools = School.objects.filter(created_by=request.user)
-        serializer = SchoolSerializer(schools, many=True)
+        serializer = self.serializer_class(schools, many=True)
         return Response(serializer.data)
+
+
 # ============================================================================
 # FACULTIES
 # ============================================================================
 
 class FacultyListCreateView(APIView):
-    """GET /faculties/ - List faculties | POST /faculties/ - Create faculty (Admin)"""
+    """
+    GET /faculties/ - List faculties
+    POST /faculties/ - Create a new faculty (Admin only)
+    """
     permission_classes = [IsAdminOrReadOnly]
     serializer_class = FacultySerializer
 
     @extend_schema(
         summary="List Faculties",
+        operation_id="faculties_list",
+        description="Get a list of all faculties",
         parameters=[
             OpenApiParameter(name='search', description='Search by name', required=False, type=str),
-        ]
+        ],
+        responses={
+            200: FacultySerializer(many=True),
+        }
     )
     def get(self, request):
         queryset = Faculty.objects.all()
         search = request.query_params.get('search')
         if search:
             queryset = queryset.filter(name__icontains=search)
-        serializer = FacultySerializer(queryset, many=True)
+        serializer = self.serializer_class(queryset, many=True)
         return Response(serializer.data)
 
     @extend_schema(
         summary="Create Faculty (Admin only)",
+        operation_id="faculties_create",
+        description="Create a new faculty. Only admins can create faculties.",
         request=FacultySerializer,
         responses={
             201: FacultySerializer,
             400: OpenApiResponse(description="Validation error"),
-            403: OpenApiResponse(description="Permission denied"),
+            403: OpenApiResponse(description="Permission denied - Admin only"),
         },
         examples=[
             OpenApiExample(
@@ -238,7 +288,7 @@ class FacultyListCreateView(APIView):
                 {'error': 'Only admins can create faculties.'},
                 status=status.HTTP_403_FORBIDDEN
             )
-        serializer = FacultySerializer(data=request.data)
+        serializer = self.serializer_class(data=request.data)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -246,26 +296,39 @@ class FacultyListCreateView(APIView):
 
 
 class FacultyDetailView(APIView):
-    """GET /faculties/{id}/ - Get faculty | PATCH /faculties/{id}/ - Update faculty (Admin)"""
+    """
+    GET /faculties/{id}/ - Get faculty details
+    PATCH /faculties/{id}/ - Update faculty (Admin only)
+    """
     permission_classes = [IsAdminOrReadOnly]
     serializer_class = FacultySerializer
 
     def get_object(self, pk):
         return get_object_or_404(Faculty, pk=pk)
 
-    @extend_schema(summary="Get Faculty Details")
+    @extend_schema(
+        summary="Get Faculty Details",
+        operation_id="faculties_retrieve",
+        description="Get detailed information about a specific faculty",
+        responses={
+            200: FacultySerializer,
+            404: OpenApiResponse(description="Faculty not found"),
+        }
+    )
     def get(self, request, pk):
         faculty = self.get_object(pk)
-        serializer = FacultySerializer(faculty)
+        serializer = self.serializer_class(faculty)
         return Response(serializer.data)
 
     @extend_schema(
         summary="Partial Update Faculty (Admin only)",
+        operation_id="faculties_update",
+        description="Update specific fields of a faculty. Only admins can update faculties.",
         request=FacultySerializer,
         responses={
             200: FacultySerializer,
             400: OpenApiResponse(description="Validation error"),
-            403: OpenApiResponse(description="Permission denied"),
+            403: OpenApiResponse(description="Permission denied - Admin only"),
             404: OpenApiResponse(description="Faculty not found"),
         },
         examples=[
@@ -285,7 +348,7 @@ class FacultyDetailView(APIView):
                 status=status.HTTP_403_FORBIDDEN
             )
         faculty = self.get_object(pk)
-        serializer = FacultySerializer(faculty, data=request.data, partial=True)
+        serializer = self.serializer_class(faculty, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
@@ -297,16 +360,24 @@ class FacultyDetailView(APIView):
 # ============================================================================
 
 class ClassLevelListCreateView(APIView):
-    """GET /class-levels/ - List class levels | POST /class-levels/ - Create (Admin)"""
+    """
+    GET /class-levels/ - List class levels
+    POST /class-levels/ - Create a new class level (Admin only)
+    """
     permission_classes = [IsAdminOrReadOnly]
     serializer_class = ClassLevelSerializer
 
     @extend_schema(
         summary="List Class Levels",
+        operation_id="class_levels_list",
+        description="Get a list of all class levels with optional filters",
         parameters=[
-            OpenApiParameter(name='level_type', description='Filter by level type', required=False, type=str),
+            OpenApiParameter(name='level_type', description='Filter by level type (SEE, +2, bachelor)', required=False, type=str),
             OpenApiParameter(name='search', description='Search by name', required=False, type=str),
-        ]
+        ],
+        responses={
+            200: ClassLevelSerializer(many=True),
+        }
     )
     def get(self, request):
         queryset = ClassLevel.objects.all()
@@ -318,16 +389,18 @@ class ClassLevelListCreateView(APIView):
         if search:
             queryset = queryset.filter(name__icontains=search)
         
-        serializer = ClassLevelSerializer(queryset, many=True)
+        serializer = self.serializer_class(queryset, many=True)
         return Response(serializer.data)
 
     @extend_schema(
         summary="Create Class Level (Admin only)",
+        operation_id="class_levels_create",
+        description="Create a new class level. Only admins can create class levels.",
         request=ClassLevelSerializer,
         responses={
             201: ClassLevelSerializer,
             400: OpenApiResponse(description="Validation error"),
-            403: OpenApiResponse(description="Permission denied"),
+            403: OpenApiResponse(description="Permission denied - Admin only"),
         },
         examples=[
             OpenApiExample(
@@ -346,7 +419,7 @@ class ClassLevelListCreateView(APIView):
                 {'error': 'Only admins can create class levels.'},
                 status=status.HTTP_403_FORBIDDEN
             )
-        serializer = ClassLevelSerializer(data=request.data)
+        serializer = self.serializer_class(data=request.data)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -354,26 +427,39 @@ class ClassLevelListCreateView(APIView):
 
 
 class ClassLevelDetailView(APIView):
-    """GET /class-levels/{id}/ - Get class level | PATCH /class-levels/{id}/ - Update (Admin)"""
+    """
+    GET /class-levels/{id}/ - Get class level details
+    PATCH /class-levels/{id}/ - Update class level (Admin only)
+    """
     permission_classes = [IsAdminOrReadOnly]
     serializer_class = ClassLevelSerializer
 
     def get_object(self, pk):
         return get_object_or_404(ClassLevel, pk=pk)
 
-    @extend_schema(summary="Get Class Level Details")
+    @extend_schema(
+        summary="Get Class Level Details",
+        operation_id="class_levels_retrieve",
+        description="Get detailed information about a specific class level",
+        responses={
+            200: ClassLevelSerializer,
+            404: OpenApiResponse(description="Class Level not found"),
+        }
+    )
     def get(self, request, pk):
         class_level = self.get_object(pk)
-        serializer = ClassLevelSerializer(class_level)
+        serializer = self.serializer_class(class_level)
         return Response(serializer.data)
 
     @extend_schema(
         summary="Partial Update Class Level (Admin only)",
+        operation_id="class_levels_update",
+        description="Update specific fields of a class level. Only admins can update class levels.",
         request=ClassLevelSerializer,
         responses={
             200: ClassLevelSerializer,
             400: OpenApiResponse(description="Validation error"),
-            403: OpenApiResponse(description="Permission denied"),
+            403: OpenApiResponse(description="Permission denied - Admin only"),
             404: OpenApiResponse(description="Class Level not found"),
         },
         examples=[
@@ -393,7 +479,7 @@ class ClassLevelDetailView(APIView):
                 status=status.HTTP_403_FORBIDDEN
             )
         class_level = self.get_object(pk)
-        serializer = ClassLevelSerializer(class_level, data=request.data, partial=True)
+        serializer = self.serializer_class(class_level, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
@@ -405,18 +491,26 @@ class ClassLevelDetailView(APIView):
 # ============================================================================
 
 class SubjectListCreateView(APIView):
-    """GET /subjects/ - List subjects | POST /subjects/ - Create subject (Admin)"""
+    """
+    GET /subjects/ - List subjects with filters
+    POST /subjects/ - Create a new subject (Admin only)
+    """
     permission_classes = [IsAdminOrReadOnly]
     serializer_class = SubjectSerializer
 
     @extend_schema(
         summary="List Subjects",
+        operation_id="subjects_list",
+        description="Get a list of all subjects with optional filters",
         parameters=[
             OpenApiParameter(name='faculty', description='Filter by faculty ID', required=False, type=int),
             OpenApiParameter(name='class_level', description='Filter by class level ID', required=False, type=int),
             OpenApiParameter(name='is_active', description='Filter by active status', required=False, type=bool),
             OpenApiParameter(name='search', description='Search by name', required=False, type=str),
-        ]
+        ],
+        responses={
+            200: SubjectSerializer(many=True),
+        }
     )
     def get(self, request):
         queryset = Subject.objects.select_related('faculty', 'class_level')
@@ -435,16 +529,18 @@ class SubjectListCreateView(APIView):
         if search:
             queryset = queryset.filter(name__icontains=search)
 
-        serializer = SubjectSerializer(queryset, many=True)
+        serializer = self.serializer_class(queryset, many=True)
         return Response(serializer.data)
 
     @extend_schema(
         summary="Create Subject (Admin only)",
+        operation_id="subjects_create",
+        description="Create a new subject. Only admins can create subjects.",
         request=SubjectSerializer,
         responses={
             201: SubjectSerializer,
             400: OpenApiResponse(description="Validation error"),
-            403: OpenApiResponse(description="Permission denied"),
+            403: OpenApiResponse(description="Permission denied - Admin only"),
         },
         examples=[
             OpenApiExample(
@@ -463,7 +559,7 @@ class SubjectListCreateView(APIView):
                 {'error': 'Only admins can create subjects.'},
                 status=status.HTTP_403_FORBIDDEN
             )
-        serializer = SubjectSerializer(data=request.data)
+        serializer = self.serializer_class(data=request.data)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -471,26 +567,39 @@ class SubjectListCreateView(APIView):
 
 
 class SubjectDetailView(APIView):
-    """GET /subjects/{id}/ - Get subject | PATCH /subjects/{id}/ - Update subject (Admin)"""
+    """
+    GET /subjects/{id}/ - Get subject details
+    PATCH /subjects/{id}/ - Update subject (Admin only)
+    """
     permission_classes = [IsAdminOrReadOnly]
     serializer_class = SubjectSerializer
 
     def get_object(self, pk):
         return get_object_or_404(Subject.objects.select_related('faculty', 'class_level'), pk=pk)
 
-    @extend_schema(summary="Get Subject Details")
+    @extend_schema(
+        summary="Get Subject Details",
+        operation_id="subjects_retrieve",
+        description="Get detailed information about a specific subject",
+        responses={
+            200: SubjectSerializer,
+            404: OpenApiResponse(description="Subject not found"),
+        }
+    )
     def get(self, request, pk):
         subject = self.get_object(pk)
-        serializer = SubjectSerializer(subject)
+        serializer = self.serializer_class(subject)
         return Response(serializer.data)
 
     @extend_schema(
         summary="Partial Update Subject (Admin only)",
+        operation_id="subjects_update",
+        description="Update specific fields of a subject. Only admins can update subjects.",
         request=SubjectSerializer,
         responses={
             200: SubjectSerializer,
             400: OpenApiResponse(description="Validation error"),
-            403: OpenApiResponse(description="Permission denied"),
+            403: OpenApiResponse(description="Permission denied - Admin only"),
             404: OpenApiResponse(description="Subject not found"),
         },
         examples=[
@@ -510,57 +619,73 @@ class SubjectDetailView(APIView):
                 status=status.HTTP_403_FORBIDDEN
             )
         subject = self.get_object(pk)
-        serializer = SubjectSerializer(subject, data=request.data, partial=True)
+        serializer = self.serializer_class(subject, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class SubjectsByFacultyView(APIView):
-    """GET /subjects/by_faculty/?faculty_id={id} - Get subjects by faculty"""
-    permission_classes = []
-    serializer_class = SubjectSerializer
+# class SubjectsByFacultyView(APIView):
+#     """
+#     GET /subjects/by_faculty/?faculty_id={id} - Get subjects by faculty
+#     """
+#     permission_classes = []
+#     serializer_class = SubjectSerializer
 
-    @extend_schema(
-        summary="Get Subjects by Faculty",
-        parameters=[
-            OpenApiParameter(name='faculty_id', description='Faculty ID', required=True, type=int),
-        ]
-    )
-    def get(self, request):
-        faculty_id = request.query_params.get('faculty_id')
-        if not faculty_id:
-            return Response(
-                {'error': 'faculty_id parameter is required.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        subjects = Subject.objects.filter(faculty_id=faculty_id, is_active=True)
-        serializer = SubjectSerializer(subjects, many=True)
-        return Response(serializer.data)
+#     @extend_schema(
+#         summary="Get Subjects by Faculty",
+#         operation_id="subjects_by_faculty",
+#         description="Get all active subjects for a specific faculty",
+#         parameters=[
+#             OpenApiParameter(name='faculty_id', description='Faculty ID', required=True, type=int),
+#         ],
+#         responses={
+#             200: SubjectSerializer(many=True),
+#             400: OpenApiResponse(description="faculty_id parameter is required"),
+#         }
+#     )
+#     def get(self, request):
+#         faculty_id = request.query_params.get('faculty_id')
+#         if not faculty_id:
+#             return Response(
+#                 {'error': 'faculty_id parameter is required.'},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
+#         subjects = Subject.objects.filter(faculty_id=faculty_id, is_active=True)
+#         serializer = self.serializer_class(subjects, many=True)
+#         return Response(serializer.data)
 
 
-class SubjectsByClassLevelView(APIView):
-    """GET /subjects/by_class_level/?class_level_id={id} - Get subjects by class level"""
-    permission_classes = []
-    serializer_class = SubjectSerializer
+# class SubjectsByClassLevelView(APIView):
+#     """
+#     GET /subjects/by_class_level/?class_level_id={id} - Get subjects by class level
+#     """
+#     permission_classes = []
+#     serializer_class = SubjectSerializer
 
-    @extend_schema(
-        summary="Get Subjects by Class Level",
-        parameters=[
-            OpenApiParameter(name='class_level_id', description='Class Level ID', required=True, type=int),
-        ]
-    )
-    def get(self, request):
-        class_level_id = request.query_params.get('class_level_id')
-        if not class_level_id:
-            return Response(
-                {'error': 'class_level_id parameter is required.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        subjects = Subject.objects.filter(class_level_id=class_level_id, is_active=True)
-        serializer = SubjectSerializer(subjects, many=True)
-        return Response(serializer.data)
+#     @extend_schema(
+#         summary="Get Subjects by Class Level",
+#         operation_id="subjects_by_class_level",
+#         description="Get all active subjects for a specific class level",
+#         parameters=[
+#             OpenApiParameter(name='class_level_id', description='Class Level ID', required=True, type=int),
+#         ],
+#         responses={
+#             200: SubjectSerializer(many=True),
+#             400: OpenApiResponse(description="class_level_id parameter is required"),
+#         }
+#     )
+#     def get(self, request):
+#         class_level_id = request.query_params.get('class_level_id')
+#         if not class_level_id:
+#             return Response(
+#                 {'error': 'class_level_id parameter is required.'},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
+#         subjects = Subject.objects.filter(class_level_id=class_level_id, is_active=True)
+#         serializer = self.serializer_class(subjects, many=True)
+#         return Response(serializer.data)
 
 
 # ============================================================================
@@ -568,16 +693,25 @@ class SubjectsByClassLevelView(APIView):
 # ============================================================================
 
 class TeacherSchoolListView(APIView):
-    """GET /teacher-schools/ - List teacher-school affiliations"""
+    """
+    GET /teacher-schools/ - List teacher-school affiliations
+    """
     permission_classes = [IsAuthenticated]
     serializer_class = TeacherSchoolSerializer
 
     @extend_schema(
         summary="List Teacher-School Affiliations",
+        operation_id="teacher_schools_list",
+        description="Get a list of teacher-school affiliations. Teachers see only their own affiliations.",
         parameters=[
-            OpenApiParameter(name='teacher', description='Filter by teacher ID', required=False, type=int),
+            OpenApiParameter(name='teacher', description='Filter by teacher ID (Admin only)', required=False, type=int),
             OpenApiParameter(name='school', description='Filter by school ID', required=False, type=int),
-        ]
+        ],
+        responses={
+            200: TeacherSchoolSerializer(many=True),
+            401: OpenApiResponse(description="Authentication required"),
+            403: OpenApiResponse(description="Permission denied"),
+        }
     )
     def get(self, request):
         queryset = TeacherSchool.objects.select_related('teacher__user', 'school')
@@ -592,21 +726,33 @@ class TeacherSchoolListView(APIView):
         teacher_id = request.query_params.get('teacher')
         school_id = request.query_params.get('school')
         
-        if teacher_id:
+        if teacher_id and request.user.is_admin:
             queryset = queryset.filter(teacher_id=teacher_id)
         if school_id:
             queryset = queryset.filter(school_id=school_id)
         
-        serializer = TeacherSchoolSerializer(queryset, many=True)
+        serializer = self.serializer_class(queryset, many=True)
         return Response(serializer.data)
 
 
 class MyTeacherSchoolsView(APIView):
-    """GET /teacher-schools/my_schools/ - Get schools for current teacher"""
+    """
+    GET /teacher-schools/my_schools/ - Get schools for current teacher
+    """
     permission_classes = [IsAuthenticated]
     serializer_class = TeacherSchoolSerializer
 
-    @extend_schema(summary="Get My Schools")
+    @extend_schema(
+        summary="Get My Schools",
+        operation_id="teacher_schools_my",
+        description="Get all school affiliations for the current authenticated teacher",
+        responses={
+            200: TeacherSchoolSerializer(many=True),
+            401: OpenApiResponse(description="Authentication required"),
+            403: OpenApiResponse(description="Permission denied - Teacher only"),
+            404: OpenApiResponse(description="Teacher profile not found"),
+        }
+    )
     def get(self, request):
         if not request.user.is_instructor:
             return Response(
@@ -617,7 +763,7 @@ class MyTeacherSchoolsView(APIView):
         try:
             teacher = request.user.teacher_profile
             affiliations = TeacherSchool.objects.filter(teacher=teacher)
-            serializer = TeacherSchoolSerializer(affiliations, many=True)
+            serializer = self.serializer_class(affiliations, many=True)
             return Response(serializer.data)
         except:
             return Response(

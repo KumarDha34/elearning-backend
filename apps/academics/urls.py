@@ -5,7 +5,7 @@ from .views import (
     SchoolListCreateView,
     SchoolDetailView,
     SchoolVerifyView,
-    VerifiedSchoolsView,
+    # VerifiedSchoolsView,
     MySchoolsView,
     # Faculties
     FacultyListCreateView,
@@ -16,8 +16,8 @@ from .views import (
     # Subjects
     SubjectListCreateView,
     SubjectDetailView,
-    SubjectsByFacultyView,
-    SubjectsByClassLevelView,
+    # SubjectsByFacultyView,
+    # SubjectsByClassLevelView,
     # Teacher Schools
     TeacherSchoolListView,
     MyTeacherSchoolsView,
@@ -28,7 +28,7 @@ urlpatterns = [
     path('schools/', SchoolListCreateView.as_view(), name='school-list-create'),
     path('schools/<int:pk>/', SchoolDetailView.as_view(), name='school-detail'),
     path('schools/<int:pk>/verify/', SchoolVerifyView.as_view(), name='school-verify'),
-    path('schools/verified/', VerifiedSchoolsView.as_view(), name='schools-verified'),
+    # path('schools/verified/', VerifiedSchoolsView.as_view(), name='schools-verified'),
     path('schools/my_schools/', MySchoolsView.as_view(), name='my-schools'),
 
     # ============ FACULTIES ============
@@ -42,8 +42,8 @@ urlpatterns = [
     # ============ SUBJECTS ============
     path('subjects/', SubjectListCreateView.as_view(), name='subject-list-create'),
     path('subjects/<int:pk>/', SubjectDetailView.as_view(), name='subject-detail'),
-    path('subjects/by_faculty/', SubjectsByFacultyView.as_view(), name='subjects-by-faculty'),
-    path('subjects/by_class_level/', SubjectsByClassLevelView.as_view(), name='subjects-by-class-level'),
+    # path('subjects/by_faculty/', SubjectsByFacultyView.as_view(), name='subjects-by-faculty'),
+    # path('subjects/by_class_level/', SubjectsByClassLevelView.as_view(), name='subjects-by-class-level'),
 
     # ============ TEACHER SCHOOLS ============
     path('teacher-schools/', TeacherSchoolListView.as_view(), name='teacherschool-list'),

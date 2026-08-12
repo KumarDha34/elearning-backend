@@ -135,6 +135,13 @@ class StudentProfileCompleteSerializer(serializers.Serializer):
         help_text="School ID from the schools list"
     )
     
+    school_name = serializers.CharField(
+        max_length=255,
+        required=False,
+        allow_blank=True,
+        help_text="School name (use this if adding a new school not in the list)"
+    )
+    
     school_type = serializers.ChoiceField(
         choices=[('school', 'School'), ('college', 'College'), ('university', 'University')],
         default='school'
@@ -192,6 +199,21 @@ class StudentProfileCompleteSerializer(serializers.Serializer):
         return value.strip()
 
     def validate(self, attrs):
+        
+        school = attrs.get('school')
+        school_name = attrs.get('school_name')
+        
+        if not school and not school_name:
+            raise serializers.ValidationError({
+                'school': 'Either school ID or school name is required.'
+            })
+        
+        # ✅ If school_name is provided, clean it
+        if school_name and not school_name.strip():
+            raise serializers.ValidationError({
+                'school_name': 'School name cannot be empty.'
+            })
+            
         if attrs['password'] != attrs['password_confirm']:
             raise serializers.ValidationError({"password_confirm": "Passwords do not match."})
         
@@ -242,7 +264,7 @@ class TeacherProfileCompleteSerializer(serializers.Serializer):
     )
     
     schools = serializers.PrimaryKeyRelatedField(
-        queryset=School.objects.filter(is_verified=True),
+        queryset=School.objects.all(),
         many=True,
         required=True,
         help_text="List of school IDs"
