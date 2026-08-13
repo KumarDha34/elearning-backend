@@ -124,6 +124,8 @@ class SignupSerializer(serializers.Serializer):
 # STUDENT PROFILE COMPLETE SERIALIZER
 # ============================================================================
 
+# apps/accounts/serializers.py
+
 class StudentProfileCompleteSerializer(serializers.Serializer):
     """Step 2: Complete Student Profile with Academics ForeignKeys"""
     
@@ -132,7 +134,7 @@ class StudentProfileCompleteSerializer(serializers.Serializer):
         queryset=School.objects.filter(is_verified=True),
         required=False,
         allow_null=True,
-        help_text="School ID from the schools list"
+        help_text="School ID from the schools list (use this if school exists)"
     )
     
     school_name = serializers.CharField(
@@ -161,7 +163,12 @@ class StudentProfileCompleteSerializer(serializers.Serializer):
         help_text="Faculty ID from the faculties list"
     )
     
-    address = serializers.CharField(max_length=200, help_text="e.g., Kalanki, Kathmandu")
+    address = serializers.CharField(
+        max_length=200,
+        required=True,
+        help_text="School address e.g., Kalanki, Kathmandu"
+    )
+    
     email = serializers.EmailField()
     profile_image = serializers.ImageField(
         required=False,
@@ -173,6 +180,7 @@ class StudentProfileCompleteSerializer(serializers.Serializer):
     password_confirm = serializers.CharField(write_only=True, min_length=8)
 
     def validate_school(self, value):
+        """Validate that if school is provided, it must be verified"""
         if value and not value.is_verified:
             raise serializers.ValidationError("This school is not verified yet.")
         return value
@@ -199,21 +207,42 @@ class StudentProfileCompleteSerializer(serializers.Serializer):
         return value.strip()
 
     def validate(self, attrs):
-        
         school = attrs.get('school')
         school_name = attrs.get('school_name')
+        address = attrs.get('address', '').strip()
         
-        if not school and not school_name:
+        
+        if school:
+            # If school ID is provided, it's valid (already verified)
+            pass
+        elif school_name and address:
+            # If school_name and address are provided, it's valid
+            pass
+        elif school_name and not address:
             raise serializers.ValidationError({
-                'school': 'Either school ID or school name is required.'
+                'address': 'Address is required when adding a new school.'
+            })
+        elif not school_name and address:
+            raise serializers.ValidationError({
+                'school_name': 'School name is required when adding a new school.'
+            })
+        else:
+            raise serializers.ValidationError({
+                'school': 'Either select a school from the list, or provide both school name and address.'
             })
         
-        # ✅ If school_name is provided, clean it
-        if school_name and not school_name.strip():
-            raise serializers.ValidationError({
-                'school_name': 'School name cannot be empty.'
-            })
+        
+        if school_name and address:
+            existing_school = School.objects.filter(
+                name__iexact=school_name.strip(),
+                address__iexact=address
+            ).exists()
             
+            if existing_school:
+                # School exists - will be used, not created
+                pass
+        
+
         if attrs['password'] != attrs['password_confirm']:
             raise serializers.ValidationError({"password_confirm": "Passwords do not match."})
         

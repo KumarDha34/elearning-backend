@@ -211,6 +211,8 @@ class OTPVerifyView(APIView):
 # PROFILE COMPLETE VIEWS
 # ============================================================================
 
+# apps/accounts/views.py
+
 class StudentProfileCompleteView(APIView):
     """
     Step 2: Complete Student Profile 
@@ -265,33 +267,42 @@ class StudentProfileCompleteView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
-
         school = data.get('school')
         school_name = data.get('school_name')
+        school_address = data.get('address', '').strip()  
+
         
-        # ✅ If school_name is provided, create or get existing school
         if school_name and school_name.strip():
-            # Check if school already exists by name (case-insensitive)
+            
             existing_school = School.objects.filter(
-                name__iexact=school_name.strip()
+                name__iexact=school_name.strip(),
+                address__iexact=school_address
             ).first()
             
             if existing_school:
-                # Use existing school (preserve its verification status)
+                
                 school = existing_school
-                logger.info(f"Student {user.phone_number} used existing school: {school_name}")
+                logger.info(f"Student {user.phone_number} used existing school: {school_name} at {school_address}")
             else:
-                # Create new school with is_verified=False
+                
+                same_name_school = School.objects.filter(
+                    name__iexact=school_name.strip()
+                ).first()
+                
+                if same_name_school:
+                    logger.info(f"School '{school_name}' exists but at different address: {same_name_school.address} (student entered: {school_address})")
+                
+                
                 school = School.objects.create(
                     name=school_name.strip(),
-                    address=data.get('address', ''),
+                    address=school_address,
                     school_type=data.get('school_type', 'school'),
-                    is_verified=False,  # ⏳ Needs admin verification
+                    is_verified=False,  
                     created_by=user
                 )
-                logger.info(f"Student {user.phone_number} created new school: {school_name} (unverified)")
+                logger.info(f"Student {user.phone_number} created new school: {school_name} at {school_address} (unverified)")
         
-        # ✅ If only school ID is provided (existing school)
+       
         elif school:
             try:
                 school = School.objects.get(id=school.id)
@@ -300,23 +311,23 @@ class StudentProfileCompleteView(APIView):
                     'error': 'Selected school does not exist.'
                 }, status=status.HTTP_400_BAD_REQUEST)
         
-        # ✅ Neither provided
+        
         else:
             return Response({
                 'error': 'Either school ID or school name is required.'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Create StudentProfile
+        # ✅ Create StudentProfile - use school's address
         StudentProfile.objects.create(
-                    user=user,
-                    school=school,
-                    school_type=data.get('school_type', 'school'),
-                    class_level=data.get('class_level'),
-                    faculty=data.get('faculty'),
-                    address=data['address'],
-                    email=data['email'],
-                    profile_image=data.get('profile_image')
-                )
+            user=user,
+            school=school,
+            school_type=data.get('school_type', 'school'),
+            class_level=data.get('class_level'),
+            faculty=data.get('faculty'),
+            address=school.address,  
+            email=data['email'],
+            profile_image=data.get('profile_image')
+        )
 
         user.set_password(data['password'])
         user.profile_completed = True
@@ -332,6 +343,7 @@ class StudentProfileCompleteView(APIView):
             'school': {
                 'id': school.id,
                 'name': school.name,
+                'address': school.address,
                 'is_verified': school.is_verified,
                 'needs_verification': not school.is_verified
             },

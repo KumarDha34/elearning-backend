@@ -61,7 +61,7 @@ class ClassLevel(models.Model):
         PLUS_TWO = '+2', _('+2 (Grade 11-12)')
         BACHELOR = 'bachelor', _('Bachelor')
     
-    name = models.CharField(max_length=50, verbose_name='Class Name')
+    name = models.CharField(max_length=50, unique=True, verbose_name='Class Name')
     level_type = models.CharField(
         max_length=20,
         choices=LevelType.choices,

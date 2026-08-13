@@ -179,6 +179,14 @@ class SchoolVerifyView(APIView):
     )
     def post(self, request, pk):
         school = get_object_or_404(School, pk=pk)
+        
+        if school.is_verified:
+            return Response({
+                'success': False,
+                'error': 'School is already verified.',
+                'school': SchoolSerializer(school).data
+            }, status=status.HTTP_400_BAD_REQUEST)  
+        
         school.is_verified = True
         school.save(update_fields=['is_verified'])
         
