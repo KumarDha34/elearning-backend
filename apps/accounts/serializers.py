@@ -6,9 +6,9 @@ from .models import User, StudentProfile, TeacherProfile
 from .validators import validate_nepali_phone_number
 from drf_spectacular.utils import extend_schema_field
 import re
-
-#  Import validators
-from .validators import validate_nepali_phone_number,validate_image_file,validate_verification_document
+from apps.academics.models import School, Faculty, ClassLevel, Subject, TeacherSchool
+# Import validators
+from .validators import validate_nepali_phone_number, validate_image_file, validate_verification_document
 
 
 # ============================================================================
@@ -16,10 +16,20 @@ from .validators import validate_nepali_phone_number,validate_image_file,validat
 # ============================================================================
 
 class StudentProfileSerializer(serializers.ModelSerializer):
+    """Student Profile Serializer with nested related data"""
+    
+    school_name = serializers.CharField(source='school.name', read_only=True)
+    class_level_name = serializers.CharField(source='class_level.name', read_only=True)
+    faculty_name = serializers.CharField(source='faculty.name', read_only=True)
+    
     class Meta:
         model = StudentProfile
         fields = [
-            'school_name', 'school_type', 'class_level', 'faculty',
+            'id', 'user',
+            'school', 'school_name',
+            'school_type',
+            'class_level', 'class_level_name',
+            'faculty', 'faculty_name',
             'address', 'email', 'profile_image', 'points_balance',
             'alternative_emails', 'alternative_phones',
             'created_at', 'updated_at'
@@ -28,16 +38,50 @@ class StudentProfileSerializer(serializers.ModelSerializer):
 
 
 class TeacherProfileSerializer(serializers.ModelSerializer):
+    """Teacher Profile Serializer with nested related data"""
+    
+    faculty_name = serializers.CharField(source='faculty.name', read_only=True)
+    subject_names = serializers.SerializerMethodField()
+    school_names = serializers.SerializerMethodField()
+    
     class Meta:
         model = TeacherProfile
         fields = [
-            'faculty', 'subjects', 'schools', 'email', 'profile_image', 
+            'id', 'user',
+            'faculty', 'faculty_name',
+            'subjects', 'subject_names',
+            # 'schools', 
+            'school_names',
+            'email', 'profile_image',
             'rating_avg', 'content_limit', 'content_count', 'bio',
             'verification_document', 'status',
             'alternative_emails', 'alternative_phones',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['rating_avg', 'content_limit', 'content_count', 'created_at', 'updated_at']
+    
+    @extend_schema_field(serializers.ListField(child=serializers.CharField()))
+    def get_subject_names(self, obj):
+        return list(obj.subjects.values_list('name', flat=True))
+    
+    # @extend_schema_field(serializers.ListField(child=serializers.CharField()))
+    # def get_school_names(self, obj):
+    #     return list(obj.schools.values_list('name', flat=True))
+    
+    @extend_schema_field(serializers.ListField(child=serializers.DictField()))
+    def get_school_names(self, obj):
+        """Get schools with additional details from TeacherSchool model"""
+        return [
+            {
+                'id': ts.school.id,
+                'name': ts.school.name,
+                'address': ts.school.address,
+                'school_type': ts.school.school_type,
+                'joined_at': ts.joined_at,
+                
+            }
+            for ts in obj.teacher_schools.all()
+        ]
 
 
 # ============================================================================
@@ -45,17 +89,18 @@ class TeacherProfileSerializer(serializers.ModelSerializer):
 # ============================================================================
 
 class SignupSerializer(serializers.Serializer):
+    """Step 1: User registration with phone number"""
+    
     first_name = serializers.CharField(max_length=150)
     middle_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
     last_name = serializers.CharField(max_length=150)
     phone_number = serializers.CharField(
         max_length=10,
-        validators=[validate_nepali_phone_number]  #  Uses validator
+        validators=[validate_nepali_phone_number]
     )
     role = serializers.ChoiceField(choices=[('student', 'Student'), ('instructor', 'Instructor')])
 
     def validate_phone_number(self, value):
-        #  Format already validated by validator, only check uniqueness
         if User.objects.filter(phone_number=value).exists():
             raise serializers.ValidationError("Phone number already exists.")
         return value
@@ -76,26 +121,69 @@ class SignupSerializer(serializers.Serializer):
 
 
 # ============================================================================
-# PROFILE COMPLETE SERIALIZERS
+# STUDENT PROFILE COMPLETE SERIALIZER
 # ============================================================================
 
+# apps/accounts/serializers.py
+
 class StudentProfileCompleteSerializer(serializers.Serializer):
-    school_name = serializers.CharField(max_length=200)
-    school_type = serializers.ChoiceField(
-        choices=[('school', 'School'), ('college', 'College'), ('university', 'University')]
+    """Step 2: Complete Student Profile with Academics ForeignKeys"""
+    
+    # Academics ForeignKeys (Send IDs from dropdown)
+    school = serializers.PrimaryKeyRelatedField(
+        queryset=School.objects.filter(is_verified=True),
+        required=False,
+        allow_null=True,
+        help_text="School ID from the schools list (use this if school exists)"
     )
-    class_level = serializers.CharField(max_length=50)
-    faculty = serializers.CharField(max_length=100, required=False, allow_blank=True)
-    address = serializers.CharField(max_length=200, help_text="e.g., Kalanki, Kathmandu")
+    
+    school_name = serializers.CharField(
+        max_length=255,
+        required=False,
+        allow_blank=True,
+        help_text="School name (use this if adding a new school not in the list)"
+    )
+    
+    school_type = serializers.ChoiceField(
+        choices=[('school', 'School'), ('college', 'College'), ('university', 'University')],
+        default='school'
+    )
+    
+    class_level = serializers.PrimaryKeyRelatedField(
+        queryset=ClassLevel.objects.all(),
+        required=False,
+        allow_null=True,
+        help_text="Class Level ID from the classes list"
+    )
+    
+    faculty = serializers.PrimaryKeyRelatedField(
+        queryset=Faculty.objects.all(),
+        required=False,
+        allow_null=True,
+        help_text="Faculty ID from the faculties list"
+    )
+    
+    address = serializers.CharField(
+        max_length=200,
+        required=True,
+        help_text="School address e.g., Kalanki, Kathmandu"
+    )
+    
     email = serializers.EmailField()
     profile_image = serializers.ImageField(
-            required=False,
-            allow_null=True,
-            validators=[validate_image_file],
-            help_text="Upload profile image (PNG, JPG, JPEG only, max 5MB)"
-    )    
+        required=False,
+        allow_null=True,
+        validators=[validate_image_file],
+        help_text="Upload profile image (PNG, JPG, JPEG only, max 5MB)"
+    )
     password = serializers.CharField(write_only=True, min_length=8)
     password_confirm = serializers.CharField(write_only=True, min_length=8)
+
+    def validate_school(self, value):
+        """Validate that if school is provided, it must be verified"""
+        if value and not value.is_verified:
+            raise serializers.ValidationError("This school is not verified yet.")
+        return value
 
     def validate_email(self, value):
         user = self.context.get('user')
@@ -119,6 +207,42 @@ class StudentProfileCompleteSerializer(serializers.Serializer):
         return value.strip()
 
     def validate(self, attrs):
+        school = attrs.get('school')
+        school_name = attrs.get('school_name')
+        address = attrs.get('address', '').strip()
+        
+        
+        if school:
+            # If school ID is provided, it's valid (already verified)
+            pass
+        elif school_name and address:
+            # If school_name and address are provided, it's valid
+            pass
+        elif school_name and not address:
+            raise serializers.ValidationError({
+                'address': 'Address is required when adding a new school.'
+            })
+        elif not school_name and address:
+            raise serializers.ValidationError({
+                'school_name': 'School name is required when adding a new school.'
+            })
+        else:
+            raise serializers.ValidationError({
+                'school': 'Either select a school from the list, or provide both school name and address.'
+            })
+        
+        
+        if school_name and address:
+            existing_school = School.objects.filter(
+                name__iexact=school_name.strip(),
+                address__iexact=address
+            ).exists()
+            
+            if existing_school:
+                # School exists - will be used, not created
+                pass
+        
+
         if attrs['password'] != attrs['password_confirm']:
             raise serializers.ValidationError({"password_confirm": "Passwords do not match."})
         
@@ -147,75 +271,51 @@ class StudentProfileCompleteSerializer(serializers.Serializer):
         return attrs
 
 
+# ============================================================================
+# TEACHER PROFILE COMPLETE SERIALIZER
+# ============================================================================
+
 class TeacherProfileCompleteSerializer(serializers.Serializer):
-    faculty = serializers.CharField(max_length=100)
-    subjects = serializers.CharField(
-        help_text="Comma separated subjects (e.g., Physics, Chemistry, Mathematics)",
-        required=True
+    """Step 2: Complete Teacher Profile with Academics ForeignKeys"""
+    
+    # Academics ForeignKeys (Send IDs from dropdown)
+    faculty = serializers.PrimaryKeyRelatedField(
+        queryset=Faculty.objects.all(),
+        required=True,
+        help_text="Faculty ID from the faculties list"
     )
-    schools = serializers.CharField(
-        help_text="Comma separated school names (e.g., Nightingale School, Global Academy)",
-        required=True
+    
+    subjects = serializers.PrimaryKeyRelatedField(
+        queryset=Subject.objects.filter(is_active=True),
+        many=True,
+        required=True,
+        help_text="List of subject IDs"
     )
+    
+    schools = serializers.PrimaryKeyRelatedField(
+        queryset=School.objects.all(),
+        many=True,
+        required=True,
+        help_text="List of school IDs"
+    )
+    
     email = serializers.EmailField()
     bio = serializers.CharField(required=False, allow_blank=True)
     profile_image = serializers.ImageField(
-        required=False, 
+        required=False,
         allow_null=True,
         validators=[validate_image_file],
         help_text="Upload profile image (PNG, JPG, JPEG only, max 5MB)"
     )
     verification_document = serializers.FileField(
-        required=False, 
-        allow_null=True,
+        required=True,
+        allow_null=False,
         validators=[validate_verification_document],
         help_text="Upload verification document (PDF only, max 10MB)"
     )
     password = serializers.CharField(write_only=True, min_length=8)
     password_confirm = serializers.CharField(write_only=True, min_length=8)
 
-    def validate_subjects(self, value):
-        if not value or not value.strip():
-            raise serializers.ValidationError("At least one subject is required.")
-        
-        subject_list = [s.strip() for s in value.split(',') if s.strip()]
-        
-        if not subject_list:
-            raise serializers.ValidationError("Please enter at least one valid subject.")
-        
-        for subject in subject_list:
-            if len(subject) < 2:
-                raise serializers.ValidationError(
-                    f"'{subject}' is too short. Please enter valid subject names."
-                )
-            if len(subject) > 100:
-                raise serializers.ValidationError(
-                    f"'{subject}' is too long. Maximum 100 characters per subject."
-                )
-        
-        return ', '.join(subject_list)
-
-    def validate_schools(self, value):
-        if not value or not value.strip():
-            raise serializers.ValidationError("At least one school is required.")
-        
-        school_list = [s.strip() for s in value.split(',') if s.strip()]
-        
-        if not school_list:
-            raise serializers.ValidationError("Please enter at least one valid school name.")
-        
-        for school in school_list:
-            if len(school) < 2:
-                raise serializers.ValidationError(
-                    f"'{school}' is too short. Please enter valid school names."
-                )
-            if len(school) > 200:
-                raise serializers.ValidationError(
-                    f"'{school}' is too long. Maximum 200 characters per school."
-                )
-        
-        return ', '.join(school_list)
-    
     def validate_email(self, value):
         user = self.context.get('user')
         
@@ -260,20 +360,37 @@ class TeacherProfileCompleteSerializer(serializers.Serializer):
 
 
 # ============================================================================
-# PROFILE UPDATE SERIALIZERS
+# STUDENT PROFILE UPDATE SERIALIZER
 # ============================================================================
 
 class StudentProfileUpdateSerializer(serializers.Serializer):
-    school_name = serializers.CharField(max_length=200, required=False)
+    """Update Student Profile with ForeignKeys"""
+    
+    school = serializers.PrimaryKeyRelatedField(
+        queryset=School.objects.filter(is_verified=True),
+        required=False,
+        allow_null=True
+    )
+    
+    class_level = serializers.PrimaryKeyRelatedField(
+        queryset=ClassLevel.objects.all(),
+        required=False,
+        allow_null=True
+    )
+    
+    faculty = serializers.PrimaryKeyRelatedField(
+        queryset=Faculty.objects.all(),
+        required=False,
+        allow_null=True
+    )
+    
     address = serializers.CharField(max_length=200, required=False, help_text="e.g., Kalanki, Kathmandu")
-    class_level = serializers.CharField(max_length=50, required=False)
-    faculty = serializers.CharField(max_length=100, required=False, allow_blank=True)
     profile_image = serializers.ImageField(
-            required=False,
-            allow_null=True,
-            validators=[validate_image_file],  #  Only PNG, JPG, JPEG
-            help_text="Upload profile image (PNG, JPG, JPEG only, max 5MB)"
-    )    
+        required=False,
+        allow_null=True,
+        validators=[validate_image_file],
+        help_text="Upload profile image (PNG, JPG, JPEG only, max 5MB)"
+    )
     alternative_email = serializers.CharField(required=False, allow_blank=True)
     alternative_phone = serializers.CharField(required=False, allow_blank=True)
 
@@ -283,28 +400,23 @@ class StudentProfileUpdateSerializer(serializers.Serializer):
         return value.strip() if value else value
     
     def validate_alternative_email(self, value):
-        """Validate single alternative email"""
         if not value or not value.strip():
-            return None  # Return None to clear the list
+            return None
         
         email = value.strip()
         
-        # Validate email format
         if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', email):
             raise serializers.ValidationError("Invalid email format.")
         
         user = self.context.get('user')
         profile = self.context.get('profile')
         
-        # Check if it's the primary email
         if user and user.email == email:
             raise serializers.ValidationError("This is your primary email. Use a different email as alternative.")
         
-        # Check if already registered as primary email by any user
         if User.objects.filter(email=email).exclude(id=user.id).exists():
             raise serializers.ValidationError("This email is already registered as primary email by another user.")
         
-        # Check if registered as alternative email by any other student
         if profile:
             if StudentProfile.objects.exclude(id=profile.id).filter(alternative_emails__contains=[email]).exists():
                 raise serializers.ValidationError("This email is already used as alternative email by another student.")
@@ -312,20 +424,17 @@ class StudentProfileUpdateSerializer(serializers.Serializer):
             if StudentProfile.objects.filter(alternative_emails__contains=[email]).exists():
                 raise serializers.ValidationError("This email is already used as alternative email by another student.")
         
-        # Check if registered as alternative email by any teacher
         if TeacherProfile.objects.filter(alternative_emails__contains=[email]).exists():
             raise serializers.ValidationError("This email is already used as alternative email by a teacher.")
         
         return email
 
     def validate_alternative_phone(self, value):
-        """Validate single alternative phone"""
         if not value or not value.strip():
-            return None  # Return None to clear the list
+            return None
         
         phone = value.strip()
         
-        # Validate phone format
         if not re.match(r'^9[678]\d{8}$', phone):
             raise serializers.ValidationError(
                 "Invalid phone number format. Must be a valid Nepali phone number (e.g., 9841234567)."
@@ -334,15 +443,12 @@ class StudentProfileUpdateSerializer(serializers.Serializer):
         user = self.context.get('user')
         profile = self.context.get('profile')
         
-        # Check if it's the primary phone
         if user and user.phone_number == phone:
             raise serializers.ValidationError("This is your primary phone number. Use a different number as alternative.")
         
-        # Check if already registered as primary phone by any user
         if User.objects.filter(phone_number=phone).exclude(id=user.id).exists():
             raise serializers.ValidationError("This phone number is already registered as primary by another user.")
         
-        # Check if registered as alternative phone by any other student
         if profile:
             if StudentProfile.objects.exclude(id=profile.id).filter(alternative_phones__contains=[phone]).exists():
                 raise serializers.ValidationError("This phone number is already used as alternative by another student.")
@@ -350,61 +456,82 @@ class StudentProfileUpdateSerializer(serializers.Serializer):
             if StudentProfile.objects.filter(alternative_phones__contains=[phone]).exists():
                 raise serializers.ValidationError("This phone number is already used as alternative by another student.")
         
-        # Check if registered as alternative phone by any teacher
         if TeacherProfile.objects.filter(alternative_phones__contains=[phone]).exists():
             raise serializers.ValidationError("This phone number is already used as alternative by a teacher.")
         
         return phone
 
     def update(self, instance, validated_data):
-        # Update profile fields
-        profile_fields = ['school_name', 'address', 'class_level', 'faculty', 'profile_image']
-        for field in profile_fields:
-            if field in validated_data:
-                setattr(instance, field, validated_data[field])
+        # Update ForeignKeys
+        if 'school' in validated_data:
+            instance.school = validated_data['school']
         
-        #  Handle SINGLE alternative email - REPLACE entire list
+        if 'class_level' in validated_data:
+            instance.class_level = validated_data['class_level']
+        
+        if 'faculty' in validated_data:
+            instance.faculty = validated_data['faculty']
+        
+        if 'address' in validated_data:
+            instance.address = validated_data['address']
+        
+        if 'profile_image' in validated_data:
+            instance.profile_image = validated_data['profile_image']
+        
+        # Handle alternative contacts
         if 'alternative_email' in validated_data:
             email = validated_data['alternative_email']
             if email:
-                # Replace with single email
                 instance.alternative_emails = [email]
             else:
-                # Clear the list
                 instance.alternative_emails = []
         
-        #  Handle SINGLE alternative phone - REPLACE entire list
         if 'alternative_phone' in validated_data:
             phone = validated_data['alternative_phone']
             if phone:
-                # Replace with single phone
                 instance.alternative_phones = [phone]
             else:
-                # Clear the list
                 instance.alternative_phones = []
         
         instance.save()
         return instance
 
 
+# ============================================================================
+# TEACHER PROFILE UPDATE SERIALIZER
+# ============================================================================
+
+
 class TeacherProfileUpdateSerializer(serializers.Serializer):
-    faculty = serializers.CharField(max_length=100, required=False)
-    subjects = serializers.CharField(
+    """Update Teacher Profile with ForeignKeys"""
+    
+    faculty = serializers.PrimaryKeyRelatedField(
+        queryset=Faculty.objects.all(),
         required=False,
-        help_text="Comma separated subjects (e.g., Physics, Chemistry, Mathematics)"
+        allow_null=True
     )
-    schools = serializers.CharField(
+    
+    subjects = serializers.PrimaryKeyRelatedField(
+        queryset=Subject.objects.filter(is_active=True),
+        many=True,
         required=False,
-        help_text="Comma separated school names (e.g., Nightingale School, Global Academy)"
+        help_text="List of subject IDs"
     )
+    
+    schools = serializers.PrimaryKeyRelatedField(
+        queryset=School.objects.filter(is_verified=True),
+        many=True,
+        required=False,
+        help_text="List of school IDs"
+    )
+    
     bio = serializers.CharField(required=False, allow_blank=True)
     profile_image = serializers.ImageField(
         required=False,
         allow_null=True,
-        validators=[validate_image_file],  #  Only PNG, JPG, JPEG
+        validators=[validate_image_file],
         help_text="Upload profile image (PNG, JPG, JPEG only, max 5MB)"
     )
-    
     verification_document = serializers.FileField(
         required=False,
         allow_null=True,
@@ -414,52 +541,9 @@ class TeacherProfileUpdateSerializer(serializers.Serializer):
     alternative_email = serializers.CharField(required=False, allow_blank=True)
     alternative_phone = serializers.CharField(required=False, allow_blank=True)
 
-    def validate_subjects(self, value):
-        if not value or not value.strip():
-            return value
-        
-        subject_list = [s.strip() for s in value.split(',') if s.strip()]
-        
-        if not subject_list:
-            return value
-        
-        for subject in subject_list:
-            if len(subject) < 2:
-                raise serializers.ValidationError(
-                    f"'{subject}' is too short. Please enter valid subject names."
-                )
-            if len(subject) > 100:
-                raise serializers.ValidationError(
-                    f"'{subject}' is too long. Maximum 100 characters per subject."
-                )
-        
-        return ', '.join(subject_list)
-
-    def validate_schools(self, value):
-        if not value or not value.strip():
-            return value
-        
-        school_list = [s.strip() for s in value.split(',') if s.strip()]
-        
-        if not school_list:
-            return value
-        
-        for school in school_list:
-            if len(school) < 2:
-                raise serializers.ValidationError(
-                    f"'{school}' is too short. Please enter valid school names."
-                )
-            if len(school) > 200:
-                raise serializers.ValidationError(
-                    f"'{school}' is too long. Maximum 200 characters per school."
-                )
-        
-        return ', '.join(school_list)
-
     def validate_alternative_email(self, value):
-        """Validate single alternative email"""
         if not value or not value.strip():
-            return None  
+            return None
         
         email = value.strip()
         
@@ -488,9 +572,8 @@ class TeacherProfileUpdateSerializer(serializers.Serializer):
         return email
 
     def validate_alternative_phone(self, value):
-        """Validate single alternative phone"""
         if not value or not value.strip():
-            return None  
+            return None
         
         phone = value.strip()
         
@@ -521,21 +604,35 @@ class TeacherProfileUpdateSerializer(serializers.Serializer):
         return phone
 
     def update(self, instance, validated_data):
-        if 'subjects' in validated_data and validated_data['subjects']:
-            subject_list = [s.strip() for s in validated_data['subjects'].split(',') if s.strip()]
-            instance.subjects = subject_list
-            del validated_data['subjects']
+          
         
-        if 'schools' in validated_data and validated_data['schools']:
-            school_list = [s.strip() for s in validated_data['schools'].split(',') if s.strip()]
-            instance.schools = school_list
-            del validated_data['schools']
+        if 'faculty' in validated_data:
+            instance.faculty = validated_data['faculty']
+
+        if 'subjects' in validated_data:
+            instance.subjects.set(validated_data['subjects'])
         
-        profile_fields = ['faculty', 'bio', 'profile_image', 'verification_document']
-        for field in profile_fields:
-            if field in validated_data:
-                setattr(instance, field, validated_data[field])
+        if 'schools' in validated_data:
+            # Clear existing school affiliations
+            instance.teacher_schools.all().delete()
+            
+            # Add new school affiliations
+            for school in validated_data['schools']:
+                TeacherSchool.objects.create(
+                    teacher=instance,
+                    school=school
+                )
         
+        if 'bio' in validated_data:
+            instance.bio = validated_data['bio']
+        
+        if 'profile_image' in validated_data:
+            instance.profile_image = validated_data['profile_image']
+        
+        if 'verification_document' in validated_data:
+            instance.verification_document = validated_data['verification_document']
+        
+        # Handle alternative contacts
         if 'alternative_email' in validated_data:
             email = validated_data['alternative_email']
             if email:
@@ -552,7 +649,6 @@ class TeacherProfileUpdateSerializer(serializers.Serializer):
         
         instance.save()
         return instance
-
 
 # ============================================================================
 # USER SERIALIZER
@@ -656,7 +752,7 @@ class UserSerializer(serializers.ModelSerializer):
 class OTPSendSerializer(serializers.Serializer):
     phone_number = serializers.CharField(
         max_length=10,
-        validators=[validate_nepali_phone_number]  #  Uses validator
+        validators=[validate_nepali_phone_number]
     )
 
     def validate_phone_number(self, value):
@@ -677,6 +773,8 @@ class OTPVerifySerializer(serializers.Serializer):
         help_text="Purpose: 'signup' or 'password_reset'"
     )
     phone_number = serializers.CharField(
+        allow_blank=True,   
+        allow_null=True,
         max_length=10,
         required=False,
         help_text="Phone number (REQUIRED only for unauthenticated users)"
@@ -695,7 +793,6 @@ class OTPVerifySerializer(serializers.Serializer):
                 'phone_number': 'Phone number required for unauthenticated users.'
             })
         
-        #  Validate format
         validate_nepali_phone_number(phone_number)
         
         return data
@@ -704,9 +801,9 @@ class OTPVerifySerializer(serializers.Serializer):
 class LoginSerializer(serializers.Serializer):
     phone_number = serializers.CharField(
         max_length=10,
-        validators=[validate_nepali_phone_number]  #  Uses validator
+        validators=[validate_nepali_phone_number]
     )
-    password = serializers.CharField(write_only=True,style={'input_type': 'password'})
+    password = serializers.CharField(write_only=True, style={'input_type': 'password'})
 
     def validate_phone_number(self, value):
         return value
@@ -744,6 +841,10 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 class LogoutSerializer(serializers.Serializer):
     refresh = serializers.CharField()
 
+
+# ============================================================================
+# PASSWORD RESET SERIALIZERS
+# ============================================================================
 
 class PasswordResetRequestSerializer(serializers.Serializer):
     """
@@ -798,14 +899,12 @@ class PasswordResetRequestSerializer(serializers.Serializer):
         request = self.context.get('request')
         
         if request and request.user and request.user.is_authenticated:
-            #  Authenticated: Show ONLY password fields
             self.fields['phone_number'].required = False
             self.fields['phone_number'].help_text = "Not required for authenticated users"
             self.fields['old_password'].required = True
             self.fields['new_password'].required = True
             self.fields['confirm_password'].required = True
         else:
-            #  Unauthenticated: Show ONLY phone_number
             self.fields['phone_number'].required = True
             self.fields['old_password'].required = False
             self.fields['old_password'].help_text = "Not required for forgot password"
@@ -818,51 +917,41 @@ class PasswordResetRequestSerializer(serializers.Serializer):
         request = self.context.get("request")
         user = request.user if request else None
 
-        # ============================================================
-        # AUTHENTICATED USER (Change Password)
-        # ============================================================
         if user and user.is_authenticated:
             old_password = attrs.get("old_password")
             new_password = attrs.get("new_password")
             confirm_password = attrs.get("confirm_password")
 
-            # Old password is required
             if not old_password:
                 raise serializers.ValidationError({
                     "old_password": "Old password is required to change your password."
                 })
 
-            # New password is required
             if not new_password:
                 raise serializers.ValidationError({
                     "new_password": "New password is required."
                 })
 
-            # Confirm password is required
             if not confirm_password:
                 raise serializers.ValidationError({
                     "confirm_password": "Please confirm your new password."
                 })
 
-            # Passwords must match
             if new_password != confirm_password:
                 raise serializers.ValidationError({
                     "confirm_password": "Passwords do not match."
                 })
 
-            # Old password must be correct
             if not user.check_password(old_password):
                 raise serializers.ValidationError({
                     "old_password": "Old password is incorrect."
                 })
 
-            # New password must be different
             if old_password == new_password:
                 raise serializers.ValidationError({
                     "new_password": "New password must be different from the old password."
                 })
 
-            # Validate password strength
             try:
                 validate_password(new_password)
             except ValidationError as e:
@@ -870,7 +959,6 @@ class PasswordResetRequestSerializer(serializers.Serializer):
                     "new_password": list(e.messages)
                 })
 
-            # Phone number NOT allowed for authenticated users
             if attrs.get("phone_number"):
                 raise serializers.ValidationError({
                     "phone_number": "Phone number is not required for authenticated users."
@@ -878,34 +966,24 @@ class PasswordResetRequestSerializer(serializers.Serializer):
 
             return attrs
 
-        # ============================================================
-        # UNAUTHENTICATED USER (Forgot Password)
-        # ============================================================
         else:
             phone_number = attrs.get("phone_number")
 
-            # Phone number is required
             if not phone_number:
                 raise serializers.ValidationError({
                     "phone_number": "Phone number is required to reset your password."
                 })
 
-            # Account must exist
-            if not User.objects.filter(
-                phone_number=phone_number,
-                is_active=True
-            ).exists():
+            if not User.objects.filter(phone_number=phone_number, is_active=True).exists():
                 raise serializers.ValidationError({
                     "phone_number": "No active account found with this phone number."
                 })
 
-            # Old password NOT allowed for unauthenticated users
             if attrs.get("old_password"):
                 raise serializers.ValidationError({
                     "old_password": "Old password is not required for password reset."
                 })
 
-            # New password NOT allowed here (will be set in confirm step)
             if attrs.get("new_password") or attrs.get("confirm_password"):
                 raise serializers.ValidationError({
                     "error": "Please use /password/reset/confirm/ to set your new password after OTP verification."
@@ -958,13 +1036,17 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
         return attrs
 
 
+# ============================================================================
+# ADMIN SERIALIZERS
+# ============================================================================
+
 class AdminUserSerializer(serializers.Serializer):
     first_name = serializers.CharField(max_length=150)
     middle_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
     last_name = serializers.CharField(max_length=150)
     phone_number = serializers.CharField(
         max_length=10,
-        validators=[validate_nepali_phone_number]  #  Uses validator
+        validators=[validate_nepali_phone_number]
     )
     email = serializers.EmailField(required=False, allow_blank=True)
     role = serializers.ChoiceField(choices=[('editor', 'Editor')])
@@ -1056,3 +1138,7 @@ class AdminVerifyTeacherSerializer(serializers.Serializer):
                 'verified': 'This field is required.'
             })
         return attrs
+
+class TokenRefreshSerializer(serializers.Serializer):
+    """Serializer for token refresh request"""
+    refresh = serializers.CharField(required=True, help_text="Refresh token")
