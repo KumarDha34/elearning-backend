@@ -998,8 +998,26 @@ class AdminVerifyTeacherView(APIView):
             return Response({
                 'error': 'Teacher profile not found.'
             }, status=status.HTTP_404_NOT_FOUND)
-
+            
         profile = user.teacher_profile
+            
+        if verified and profile.status == TeacherProfile.Status.VERIFIED:
+            return Response({
+                'success': False,
+                'error': f'Teacher {phone_number} is already verified.',
+                'user': UserSerializer(user).data,
+                'current_status': profile.status
+            }, status=status.HTTP_409_CONFLICT)
+            
+        if not verified and profile.status == TeacherProfile.Status.NOT_VERIFIED:
+            return Response({
+                'success': False,
+                'error': f'Teacher {phone_number} is already not verified.',
+                'user': UserSerializer(user).data,
+                'current_status': profile.status
+            }, status=status.HTTP_409_CONFLICT)     
+
+        
         if verified:
             profile.status = TeacherProfile.Status.VERIFIED
             message = f'Teacher {phone_number} has been verified.'
