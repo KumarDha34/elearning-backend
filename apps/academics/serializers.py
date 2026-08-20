@@ -109,3 +109,4 @@ class ChapterSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Subject is required")
         if not value.is_active:
             raise serializers.ValidationError("Cannot create chapter for an return value")
+        return value
