@@ -16,6 +16,8 @@ from .views import (
     # Subjects
     SubjectListCreateView,
     SubjectDetailView,
+    ChapterDetailView,
+    ChapterListCreateView,
     # SubjectsByFacultyView,
     # SubjectsByClassLevelView,
     # Teacher Schools
@@ -44,6 +46,8 @@ urlpatterns = [
     path('subjects/<int:pk>/', SubjectDetailView.as_view(), name='subject-detail'),
     # path('subjects/by_faculty/', SubjectsByFacultyView.as_view(), name='subjects-by-faculty'),
     # path('subjects/by_class_level/', SubjectsByClassLevelView.as_view(), name='subjects-by-class-level'),
+    path('chapters/', ChapterListCreateView.as_view(), name='chapter-list-create'), 
+    path('chapters/<int:pk>/', ChapterDetailView.as_view(), name='chapter-detail'),
 
     # ============ TEACHER SCHOOLS ============
     path('teacher-schools/', TeacherSchoolListView.as_view(), name='teacherschool-list'),

@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from drf_spectacular.utils import extend_schema_field
 from .models import (
-    School, Faculty, ClassLevel, Subject, TeacherSchool
+    School, Faculty, ClassLevel, Subject, TeacherSchool,Chapter
 )
 
 
@@ -85,3 +85,27 @@ class TeacherSchoolSerializer(serializers.ModelSerializer):
     @extend_schema_field(serializers.CharField())
     def get_teacher_name(self, obj):
         return obj.teacher.user.get_full_name()
+    
+class ChapterSerializer(serializers.ModelSerializer):
+    subject_name=serializers.CharField(source='subject.name',read_only=True)
+
+    class Meta:
+        model=Chapter
+        fields=[
+            'id','subject','subject_name',
+            'name','description','is_active','created_at','updated_at'
+        ]
+        read_only_fields=['created_at','updated_at']
+
+    def validate_name(self,value):
+        if not value or not value.strip():
+            raise serializers.ValidationError("Chapter name cannot be empty")
+        if len(value.strip())<2:
+            raise serializers.ValidationError("Chapter name must be at least 2 characters")
+        return value.strip()
+
+    def validate_subject(self,value):
+        if not value:
+            raise serializers.ValidationError("Subject is required")
+        if not value.is_active:
+            raise serializers.ValidationError("Cannot create chapter for an return value")
