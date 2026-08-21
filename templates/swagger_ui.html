@@ -1,0 +1,96 @@
+<!-- templates/swagger_ui.html -->
+{% load static %}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>E-Learning Platform API</title>
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css">
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-standalone-preset.css">
+    
+    <!-- ✅ CKEditor 4 -->
+    <script src="https://cdn.ckeditor.com/4.22.1/standard/ckeditor.js"></script>
+    
+    <style>
+        .ckeditor-wrapper {
+            margin: 10px 0;
+        }
+        .ckeditor-wrapper textarea {
+            width: 100%;
+            height: 300px;
+        }
+    </style>
+</head>
+<body>
+    <div id="swagger-ui"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-standalone-preset.js"></script>
+
+    <script>
+        window.onload = function() {
+            const ui = SwaggerUIBundle({
+                url: "/api/v1/schema/",
+                dom_id: '#swagger-ui',
+                presets: [
+                    SwaggerUIBundle.presets.apis,
+                    SwaggerUIStandalonePreset
+                ],
+                layout: "BaseLayout",
+                deepLinking: true,
+                persistAuthorization: true,
+                displayOperationId: false,
+                filter: true,
+                showExtensions: true,
+                showCommonExtensions: true,
+                // ✅ Custom plugin to add CKEditor
+                plugins: [
+                    function() {
+                        return {
+                            wrapComponents: {
+                                // ✅ Wrap the parameter component
+                                parameter: function(OriginalComponent, { React }) {
+                                    return function(props) {
+                                        // Check if this is the 'content' field
+                                        if (props.param && props.param.name === 'content' && props.param.in === 'body') {
+                                            return React.createElement('div', { className: 'ckeditor-wrapper' },
+                                                React.createElement('textarea', { 
+                                                    id: 'ckeditor-content',
+                                                    className: 'ckeditor',
+                                                    defaultValue: props.value || ''
+                                                })
+                                            );
+                                        }
+                                        return React.createElement(OriginalComponent, props);
+                                    };
+                                }
+                            }
+                        };
+                    }
+                ]
+            });
+
+            // ✅ After render, initialize CKEditor
+            setTimeout(function() {
+                const textarea = document.getElementById('ckeditor-content');
+                if (textarea) {
+                    CKEDITOR.replace('ckeditor-content', {
+                        height: 300,
+                        toolbar: [
+                            ['Bold', 'Italic', 'Underline', 'Strike'],
+                            ['NumberedList', 'BulletedList'],
+                            ['Link', 'Unlink'],
+                            ['Image', 'Table'],
+                            ['Undo', 'Redo'],
+                            ['Maximize']
+                        ]
+                    });
+                }
+            }, 1000);
+
+            window.ui = ui;
+        };
+    </script>
+</body>
+</html>
