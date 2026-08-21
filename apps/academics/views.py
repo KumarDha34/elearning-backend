@@ -7,10 +7,10 @@ from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample, OpenApiResponse
 from drf_spectacular.types import OpenApiTypes
 
-from .models import School, Faculty, ClassLevel, Subject, TeacherSchool
+from .models import School, Faculty, ClassLevel, Subject, TeacherSchool,Chapter
 from .serializers import (
     SchoolSerializer, FacultySerializer, ClassLevelSerializer,
-    SubjectSerializer, TeacherSchoolSerializer
+    SubjectSerializer, TeacherSchoolSerializer,ChapterSerializer
 )
 from apps.accounts.permissions import IsAdmin, IsAdminOrReadOnly
 
@@ -778,3 +778,144 @@ class MyTeacherSchoolsView(APIView):
                 {'error': 'Teacher profile not found.'},
                 status=status.HTTP_404_NOT_FOUND
             )
+
+class ChapterListCreateView(APIView):
+    """
+    GET /chapters/ - List chapter with filters
+    POST /chapters/- Create chapeters
+    """
+    permission_classes=[IsAdminOrReadOnly]
+    serializer_class=ChapterSerializer
+
+    @extend_schema(
+        summary="List Chapters",
+        operation_id="chapters_list",
+        description="Get a list of all chapter with filters",
+        parameters=[
+            OpenApiParameter(name='subject', description='Filter by subject ID', required=False, type=int),
+            OpenApiParameter(name='search', description='Search by name', required=False, type=str),
+            OpenApiParameter(name='is_active', description='Filter by active status', required=False, type=bool),
+        ],
+        responses={
+            200: ChapterSerializer(many=True),
+        }
+    )
+    def get(self,request):
+        queryset=Chapter.objects.select_related('subject')
+        subject_id=request.query_params.get('subject')
+        search=request.query_params.get('is_active')
+        is_active = request.query_params.get('is_active')
+
+        if subject_id:
+            queryset=queryset.filter(subject_id=subject_id)
+        if search:
+            queryset=queryset.filter(name__icontains=search)
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+
+        serializer=self.serializer_class(queryset,many=True)
+        return Response(serializer.data)
+
+    @extend_schema(
+        summary="Create Chapters",
+        operation_id="create_chapters",
+        description="Create a new Chapter. Only Admins can create",
+        request=ChapterSerializer,
+        responses={
+            201: ChapterSerializer,
+            400: OpenApiResponse(description="Validation error"),
+            403: OpenApiResponse(description="Permission denied - Admin only"),
+        },
+    )
+    def post(self,request):
+        if not request.user.is_admin:
+            return Response(
+                {'error':'Only admin create a subjects',},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        serializer=self.serializer_class(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data,status=status.HTTP_201_CREATED)
+        return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
+
+class ChapterDetailView(APIView):
+    """
+    GET /chapters/{id}/ - Get chapter details
+    PATCH /chapters/{id}/ - Update chapter (Admin only)
+    DELETE /chapters/{id}/ - Delete chapter (Admin only)
+    """
+    permission_classes = [IsAdminOrReadOnly]
+    serializer_class = ChapterSerializer
+
+    def get_object(self, pk):
+        return get_object_or_404(Chapter.objects.select_related('subject'), pk=pk)
+
+    @extend_schema(
+        summary="Get Chapter Details",
+        operation_id="chapters_retrieve",
+        description="Get detailed information about a specific chapter",
+        responses={
+            200: ChapterSerializer,
+            404: OpenApiResponse(description="Chapter not found"),
+        }
+    )
+    def get(self, request, pk):
+        chapter = self.get_object(pk)
+        serializer = self.serializer_class(chapter)
+        return Response(serializer.data)
+
+    @extend_schema(
+        summary="Partial Update Chapter (Admin only)",
+        operation_id="chapters_update",
+        description="Update specific fields of a chapter. Only admins can update chapters.",
+        request=ChapterSerializer,
+        responses={
+            200: ChapterSerializer,
+            400: OpenApiResponse(description="Validation error"),
+            403: OpenApiResponse(description="Permission denied - Admin only"),
+            404: OpenApiResponse(description="Chapter not found"),
+        },
+        examples=[
+            OpenApiExample(
+                'Update Chapter Example',
+                value={
+                    "name": "Updated Chapter Name",
+                    "description": "Updated description",
+                    "is_active": False
+                }
+            )
+        ]
+    )
+    def patch(self, request, pk):
+        if not request.user.is_admin:
+            return Response(
+                {'error': 'Only admins can update chapters.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        chapter = self.get_object(pk)
+        serializer = self.serializer_class(chapter, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @extend_schema(
+        summary="Delete Chapter (Admin only)",
+        operation_id="chapters_delete",
+        description="Delete a chapter. Only admins can delete chapters.",
+        responses={
+            204: None,
+            403: OpenApiResponse(description="Permission denied - Admin only"),
+            404: OpenApiResponse(description="Chapter not found"),
+        }
+    )
+    def delete(self, request, pk):
+        if not request.user.is_admin:
+            return Response(
+                {'error': 'Only admins can delete chapters.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        chapter = self.get_object(pk)
+        chapter.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
