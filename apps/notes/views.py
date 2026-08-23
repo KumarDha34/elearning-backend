@@ -19,34 +19,34 @@ from .serializers import (
     NoteStatusUpdateSerializer,
     NoteResubmitSerializer,
 )
-from .permissions import IsVerifiedTeacher, IsAdminOrEditor
+from .permissions import (
+    IsVerifiedTeacher,
+    IsAdminOrEditor,
+    IsVerifiedTeacherOrAdmin,  # ✅ ADD THIS IMPORT
+)
 
 
 # ============================================================================
-# 1. NOTE PREVIEW VIEW - ONLY FOR VERIFIED TEACHERS
+# 1. NOTE PREVIEW VIEW - VERIFIED TEACHERS OR ADMIN
 # ============================================================================
 
 class NotePreviewView(APIView):
     """
     POST /api/v1/notes/preview/
     
-    ✅ ONLY verified teachers can preview their notes.
-    This is like GitHub's preview button - shows how the content will look.
-    Preview does NOT save anything to database.
-    
-    Purpose: Teachers can see the formatted version before publishing.
+    ✅ Verified teachers or Admin can preview their notes.
     """
-    permission_classes = [IsVerifiedTeacher]  # ✅ ONLY verified teachers
+    permission_classes = [IsVerifiedTeacherOrAdmin]  # ✅ UPDATED
 
     @extend_schema(
-        summary="Preview Note (Verified Teachers Only)",
+        summary="Preview Note (Verified Teachers or Admin Only)",
         operation_id="notes_preview",
-        description="Preview note content before saving (Like GitHub preview). Only verified teachers can preview.",
+        description="Preview note content before saving. Only verified teachers or Admin can preview.",
         request=NotePreviewSerializer,
         responses={
             200: OpenApiResponse(description="Preview generated successfully"),
             400: OpenApiResponse(description="Validation error"),
-            403: OpenApiResponse(description="Only verified teachers can preview notes"),
+            403: OpenApiResponse(description="Permission denied"),
         }
     )
     def post(self, request):
@@ -62,27 +62,26 @@ class NotePreviewView(APIView):
 
 
 # ============================================================================
-# 2. NOTE CREATE VIEW - ONLY FOR VERIFIED TEACHERS
+# 2. NOTE CREATE VIEW - VERIFIED TEACHERS OR ADMIN
 # ============================================================================
 
 class NoteCreateView(APIView):
     """
     POST /api/v1/notes/
     
-    ✅ ONLY verified teachers can create notes.
-    New notes go to PENDING status for review.
+    ✅ Verified teachers or Admin can create notes.
     """
-    permission_classes = [IsVerifiedTeacher]  # ✅ ONLY verified teachers
+    permission_classes = [IsVerifiedTeacherOrAdmin]  # ✅ UPDATED
 
     @extend_schema(
-        summary="Create Note (Verified Teachers Only)",
+        summary="Create Note (Verified Teachers or Admin Only)",
         operation_id="notes_create",
-        description="Create a new note. Only verified teachers can create notes.",
+        description="Create a new note. Only verified teachers or Admin can create notes.",
         request=NoteCreateSerializer,
         responses={
             201: NoteDetailSerializer,
             400: OpenApiResponse(description="Validation error"),
-            403: OpenApiResponse(description="Only verified teachers can create notes"),
+            403: OpenApiResponse(description="Permission denied"),
         }
     )
     def post(self, request):
@@ -100,7 +99,7 @@ class NoteCreateView(APIView):
 
 
 # ============================================================================
-# 3. NOTE LIST VIEW - FOR EVERYONE (DISPLAYING NOTES)
+# 3. NOTE LIST VIEW - FOR EVERYONE
 # ============================================================================
 
 class NoteListView(APIView):
@@ -108,12 +107,6 @@ class NoteListView(APIView):
     GET /api/v1/notes/
     
     ✅ Everyone can view published notes.
-    This is the DISPLAY part - showing notes on the website.
-    
-    Different users see different notes:
-        - Admin/Editor: All notes (for moderation)
-        - Teachers: Own notes + All published notes
-        - Students: Only published notes
     """
     permission_classes = [IsAuthenticated]
 
@@ -131,21 +124,15 @@ class NoteListView(APIView):
     def get(self, request):
         user = request.user
         
-        # Admin/Editor: See ALL notes (for moderation)
         if user.role in ['admin', 'editor']:
             queryset = Note.objects.all()
-        
-        # Teacher: See their own notes + ALL published notes
         elif user.is_instructor:
             queryset = Note.objects.filter(
                 Q(uploaded_by=user) | Q(status=Note.Status.PUBLISHED)
             )
-        
-        # Student: See ONLY published notes
         else:
             queryset = Note.objects.filter(status=Note.Status.PUBLISHED)
         
-        # Apply filters
         subject = request.query_params.get('subject')
         chapter = request.query_params.get('chapter')
         search = request.query_params.get('search')
@@ -163,7 +150,7 @@ class NoteListView(APIView):
 
 
 # ============================================================================
-# 4. NOTE DETAIL VIEW - FOR EVERYONE (DISPLAYING NOTES)
+# 4. NOTE DETAIL VIEW - FOR EVERYONE
 # ============================================================================
 
 class NoteDetailView(APIView):
@@ -171,12 +158,6 @@ class NoteDetailView(APIView):
     GET /api/v1/notes/{id}/
     
     ✅ Everyone can view published notes.
-    This is the DISPLAY part - showing full note on the website.
-    
-    Different users have different access:
-        - Admin/Editor: Any note
-        - Teachers: Own notes + Published notes
-        - Students: Only published notes
     """
     permission_classes = [IsAuthenticated]
 
@@ -186,15 +167,12 @@ class NoteDetailView(APIView):
     def check_view_permission(self, request, note):
         user = request.user
         
-        # Admin and Editor: Can view ALL notes
         if user.role in ['admin', 'editor']:
             return True
         
-        # Teacher: Can view own notes + published notes
         if user.is_instructor:
             return note.uploaded_by == user or note.is_published()
         
-        # Student: Can view ONLY published notes
         if user.is_student:
             return note.is_published()
         
@@ -218,7 +196,6 @@ class NoteDetailView(APIView):
                 'error': 'You do not have permission to view this note.'
             }, status=status.HTTP_403_FORBIDDEN)
         
-        # Increment view count for all users viewing published notes
         if note.is_published():
             note.increment_views()
         
@@ -227,40 +204,57 @@ class NoteDetailView(APIView):
 
 
 # ============================================================================
-# 5. NOTE UPDATE VIEW - ONLY FOR VERIFIED TEACHER OWNERS
+# 5. NOTE UPDATE VIEW - VERIFIED TEACHER OWNER OR ADMIN
 # ============================================================================
 
 class NoteUpdateView(APIView):
     """
     PATCH /api/v1/notes/{id}/
     
-    ✅ ONLY verified teachers who own the note can update it.
-    Only DRAFT or PENDING notes can be updated.
+    ✅ Admin OR verified teacher who owns the note can update.
     """
-    permission_classes = [IsVerifiedTeacher]
+    permission_classes = [IsAuthenticated]  # ✅ UPDATED
 
     @extend_schema(
-        summary="Update Note (Verified Teacher Owner Only)",
+        summary="Update Note (Admin or Verified Teacher Owner)",
         operation_id="notes_update",
-        description="Update a note. Only verified teachers who own the note can update.",
+        description="Update a note. Admin or verified teacher who owns the note can update.",
         request=NoteUpdateSerializer,
         responses={
             200: NoteDetailSerializer,
             400: OpenApiResponse(description="Validation error"),
-            403: OpenApiResponse(description="Only verified teacher owner can update"),
+            403: OpenApiResponse(description="Permission denied"),
             404: OpenApiResponse(description="Note not found"),
         }
     )
     def patch(self, request, pk):
         note = get_object_or_404(Note, pk=pk)
         
-        # Check ownership
+        # Admin can update any note
+        if request.user.role == 'admin':
+            serializer = NoteUpdateSerializer(
+                note,
+                data=request.data,
+                partial=True
+            )
+            serializer.is_valid(raise_exception=True)
+            updated_note = serializer.save()
+            return Response(
+                NoteDetailSerializer(updated_note).data,
+                status=status.HTTP_200_OK
+            )
+        
+        # Teacher must be verified and own the note
+        if not IsVerifiedTeacher().has_permission(request, self):
+            return Response({
+                'error': 'Only verified teachers can update their own notes.'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
         if note.uploaded_by != request.user:
             return Response({
                 'error': 'Only the teacher who created this note can update it.'
             }, status=status.HTTP_403_FORBIDDEN)
         
-        # Only DRAFT or PENDING notes can be updated
         if not note.can_edit():
             return Response({
                 'error': f'Notes in {note.status} status cannot be updated.'
@@ -305,12 +299,10 @@ class NoteDeleteView(APIView):
     def delete(self, request, pk):
         note = get_object_or_404(Note, pk=pk)
         
-        # Admin can delete any note
         if request.user.role == 'admin':
             note.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
         
-        # Teacher must be verified and own the note
         if not IsVerifiedTeacher().has_permission(request, self):
             return Response({
                 'error': 'Only verified teachers can delete their own notes.'
@@ -326,32 +318,56 @@ class NoteDeleteView(APIView):
 
 
 # ============================================================================
-# 7. NOTE STATUS UPDATE VIEW - ONLY FOR VERIFIED TEACHER OWNERS
+# 7. NOTE STATUS UPDATE VIEW - VERIFIED TEACHER OWNER OR ADMIN
 # ============================================================================
 
 class NoteStatusUpdateView(APIView):
     """
     PATCH /api/v1/notes/{id}/status/
     
-    ✅ ONLY verified teachers who own the note can update status.
-    Status flow: DRAFT → PENDING → PUBLISHED
+    ✅ Admin OR verified teacher who owns the note can update status.
     """
-    permission_classes = [IsVerifiedTeacher]
+    permission_classes = [IsAuthenticated]  # ✅ UPDATED
 
     @extend_schema(
         summary="Update Note Status",
         operation_id="notes_status_update",
-        description="Update note status. Only verified teacher owner can update.",
+        description="Update note status. Admin or verified teacher owner can update.",
         request=NoteStatusUpdateSerializer,
         responses={
             200: NoteDetailSerializer,
             400: OpenApiResponse(description="Validation error"),
-            403: OpenApiResponse(description="Only verified teacher owner can update status"),
+            403: OpenApiResponse(description="Permission denied"),
             404: OpenApiResponse(description="Note not found"),
         }
     )
     def patch(self, request, pk):
         note = get_object_or_404(Note, pk=pk)
+        
+        # Admin can update any note
+        if request.user.role == 'admin':
+            serializer = NoteStatusUpdateSerializer(
+                data=request.data,
+                context={'instance': note}
+            )
+            serializer.is_valid(raise_exception=True)
+            new_status = serializer.validated_data['status']
+            note.status = new_status
+            
+            if new_status == Note.Status.PUBLISHED:
+                note.published_at = timezone.now()
+            
+            note.save()
+            return Response(
+                NoteDetailSerializer(note).data,
+                status=status.HTTP_200_OK
+            )
+        
+        # Teacher must be verified and own the note
+        if not IsVerifiedTeacher().has_permission(request, self):
+            return Response({
+                'error': 'Only verified teachers can update their own notes.'
+            }, status=status.HTTP_403_FORBIDDEN)
         
         if note.uploaded_by != request.user:
             return Response({
@@ -451,36 +467,35 @@ class NoteApprovalView(APIView):
 
 
 # ============================================================================
-# 9. NOTE RESUBMIT VIEW - ONLY FOR VERIFIED TEACHERS
+# 9. NOTE RESUBMIT VIEW - VERIFIED TEACHER OR ADMIN
 # ============================================================================
 
 class NoteResubmitView(APIView):
     """
     POST /api/v1/notes/{id}/resubmit/
     
-    ✅ Verified teachers can resubmit rejected notes.
-    Moves note from REJECTED back to PENDING.
+    ✅ Verified teachers or Admin can resubmit rejected notes.
     """
-    permission_classes = [IsVerifiedTeacher]
+    permission_classes = [IsVerifiedTeacherOrAdmin]  # ✅ UPDATED
 
     @extend_schema(
         summary="Resubmit Rejected Note",
         operation_id="notes_resubmit",
-        description="Resubmit a rejected note for review (Verified Teachers only)",
+        description="Resubmit a rejected note for review (Verified Teachers or Admin)",
         request=NoteResubmitSerializer,
         responses={
             200: NoteDetailSerializer,
             400: OpenApiResponse(description="Validation error"),
-            403: OpenApiResponse(description="Only verified teacher owner can resubmit"),
+            403: OpenApiResponse(description="Permission denied"),
             404: OpenApiResponse(description="Note not found"),
         }
     )
     def post(self, request, pk):
         note = get_object_or_404(Note, pk=pk)
         
-        if note.uploaded_by != request.user:
+        if note.uploaded_by != request.user and request.user.role != 'admin':
             return Response({
-                'error': 'Only the teacher who created this note can resubmit it.'
+                'error': 'Only the teacher who created this note or Admin can resubmit it.'
             }, status=status.HTTP_403_FORBIDDEN)
         
         if not note.is_rejected():
@@ -505,7 +520,6 @@ class NoteRejectInfoView(APIView):
     GET /api/v1/notes/{id}/reject-info/
     
     Get rejection details for a rejected note.
-    Teachers can view their own rejection info.
     """
     permission_classes = [IsAuthenticated]
 

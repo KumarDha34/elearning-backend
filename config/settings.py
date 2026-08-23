@@ -41,8 +41,7 @@ INSTALLED_APPS = [
     "drf_spectacular",
     
     # ckeditor apps
-    'ckeditor',
-    'ckeditor_uploader',
+    'django_ckeditor_5',
     
 
     # Local apps
@@ -54,54 +53,90 @@ INSTALLED_APPS = [
 AUTH_USER_MODEL = 'accounts.User'
 
 # CKEditor Configuration
-CKEDITOR_CONFIGS = {
+CKEDITOR_5_CONFIGS = {
     'default': {
-        'toolbar': 'full',
-        'height': 500,
-        'width': '100%',
-        'removePlugins': 'stylesheetparser',
-        'allowedContent': True,
-        'extraPlugins': ','.join([
-            'uploadimage',  # Image upload
-            'uploadfile',   # File upload
-            'image2',       # Enhanced image
-            'widget',       # Widgets
-            'lineutils',    # Line utilities
-        ]),
-        'toolbar': [
-            {'name': 'document', 'items': ['Source', '-', 'Save', 'NewPage', 'Preview', 'Print', '-', 'Templates']},
-            {'name': 'clipboard', 'items': ['Cut', 'Copy', 'Paste', 'PasteText', 'PasteFromWord', '-', 'Undo', 'Redo']},
-            {'name': 'editing', 'items': ['Find', 'Replace', '-', 'SelectAll']},
-            {'name': 'forms', 'items': ['Form', 'Checkbox', 'Radio', 'TextField', 'Textarea', 'Select', 'Button', 'ImageButton', 'HiddenField']},
-            '/',
-            {'name': 'basicstyles', 'items': ['Bold', 'Italic', 'Underline', 'Strike', 'Subscript', 'Superscript', '-', 'CopyFormatting', 'RemoveFormat']},
-            {'name': 'paragraph', 'items': ['NumberedList', 'BulletedList', '-', 'Outdent', 'Indent', '-', 'Blockquote', 'CreateDiv', '-', 'JustifyLeft', 'JustifyCenter', 'JustifyRight', 'JustifyBlock', '-', 'BidiLtr', 'BidiRtl', 'Language']},
-            {'name': 'links', 'items': ['Link', 'Unlink', 'Anchor']},
-            {'name': 'insert', 'items': ['Image', 'Flash', 'Table', 'HorizontalRule', 'Smiley', 'SpecialChar', 'PageBreak', 'Iframe']},
-            '/',
-            {'name': 'styles', 'items': ['Styles', 'Format', 'Font', 'FontSize']},
-            {'name': 'colors', 'items': ['TextColor', 'BGColor']},
-            {'name': 'tools', 'items': ['Maximize', 'ShowBlocks']},
-            {'name': 'about', 'items': ['About']},
-        ],
-        'filebrowserUploadUrl': '/api/v1/notes/upload/',
-        'filebrowserImageUploadUrl': '/api/v1/notes/upload/image/',
+        'toolbar': {
+            'items': [
+                'heading',
+                '|',
+                'bold',
+                'italic',
+                'underline',
+                'strikethrough',
+                '|',
+                'bulletedList',
+                'numberedList',
+                '|',
+                'blockQuote',
+                'link',
+                '|',
+                'imageUpload',
+                'mediaEmbed',
+                '|',
+                'sourceEditing',
+                '|',
+                'undo',
+                'redo',
+            ]
+        },
+        'image': {
+            'toolbar': [
+                'imageTextAlternative',
+                '|',
+                'imageStyle:alignLeft',
+                'imageStyle:alignRight',
+                'imageStyle:alignCenter',
+                'imageStyle:side',
+            ],
+            'styles': [
+                'full',
+                'side',
+                'alignLeft',
+                'alignRight',
+                'alignCenter',
+            ]
+        },
+        'table': {
+            'contentToolbar': [
+                'tableColumn',
+                'tableRow',
+                'mergeTableCells',
+                'tableProperties',
+                'tableCellProperties',
+            ]
+        },
+        'heading': {
+            'options': [
+                {'model': 'paragraph', 'title': 'Paragraph', 'class': 'ck-heading_paragraph'},
+                {'model': 'heading1', 'view': 'h1', 'title': 'Heading 1', 'class': 'ck-heading_heading1'},
+                {'model': 'heading2', 'view': 'h2', 'title': 'Heading 2', 'class': 'ck-heading_heading2'},
+                {'model': 'heading3', 'view': 'h3', 'title': 'Heading 3', 'class': 'ck-heading_heading3'},
+                {'model': 'heading4', 'view': 'h4', 'title': 'Heading 4', 'class': 'ck-heading_heading4'},
+            ]
+        },
+        'language': 'en',
     },
     'basic': {
-        'toolbar': 'Basic',
-        'height': 300,
-        'width': '100%',
-        'removePlugins': 'stylesheetparser',
-        'allowedContent': True,
+        'toolbar': {
+            'items': [
+                'bold',
+                'italic',
+                '|',
+                'bulletedList',
+                'numberedList',
+                '|',
+                'undo',
+                'redo',
+            ]
+        }
     }
 }
 
-CKEDITOR_UPLOAD_PATH = 'uploads/'
-CKEDITOR_IMAGE_BACKEND = 'pillow'
-CKEDITOR_RESTRICT_BY_USER = True
-CKEDITOR_BROWSE_SHOW_DIRS = True
-
-
+CKEDITOR_5_FILE_UPLOAD = {
+    'upload_path': 'uploads/',
+    'allowed_types': ['png', 'jpeg', 'jpg', 'gif', 'webp'],
+    'max_file_size': 5 * 1024 * 1024,  # 5MB
+}
 
 
 MIDDLEWARE = [
@@ -294,6 +329,11 @@ USE_TZ = True
 # Static files
 # ---------------------------------------------------------------------------
 STATIC_URL = "static/"
+
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_DIRS = [
+    BASE_DIR / 'static',
+]
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 

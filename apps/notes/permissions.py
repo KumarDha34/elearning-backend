@@ -17,19 +17,15 @@ class IsVerifiedTeacher(BasePermission):
     def has_permission(self, request, view):
         user = request.user
         
-        # Check authentication
         if not user.is_authenticated:
             return False
         
-        # Check if user is an instructor
         if not user.is_instructor:
             return False
         
-        # Check if user has a teacher profile
         if not hasattr(user, 'teacher_profile'):
             return False
         
-        # Check if the teacher is verified
         return user.teacher_profile.status == 'verified'
 
 
@@ -57,3 +53,35 @@ class IsAdminOrTeacherOwner(BasePermission):
         if request.user.role == 'admin':
             return True
         return obj.uploaded_by == request.user
+
+
+# ✅ ADD THIS NEW PERMISSION CLASS
+class IsVerifiedTeacherOrAdmin(BasePermission):
+    """
+    Allow only verified teachers or Admin to perform actions.
+    Checks:
+    1. User is authenticated
+    2. User is either:
+       a. Admin (has full access)
+       b. Verified teacher (has teacher profile and is verified)
+    """
+    
+    message = "Only verified teachers or Admin can perform this action."
+    
+    def has_permission(self, request, view):
+        user = request.user
+        
+        if not user.is_authenticated:
+            return False
+        
+        # ✅ Admin has full access
+        if user.role == 'admin':
+            return True
+        
+        if not user.is_instructor:
+            return False
+        
+        if not hasattr(user, 'teacher_profile'):
+            return False
+        
+        return user.teacher_profile.status == 'verified'

@@ -40,6 +40,11 @@ class NoteCreateSerializer(serializers.ModelSerializer):
     def validate(self, data):
         user = self.context['request'].user
         
+        # ✅ Admin can create notes without teacher profile
+        if user.role == 'admin':
+            return data
+        
+        # ✅ Check for verified teacher
         if not hasattr(user, 'teacher_profile'):
             raise serializers.ValidationError({
                 'error': 'Only teachers can upload notes.'

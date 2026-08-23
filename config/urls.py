@@ -7,6 +7,11 @@ from django.conf import settings
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    
+    
+    #ckeditor 5 url 
+    path('ckeditor5/', include('django_ckeditor_5.urls')),
+    
     # path("api/v1/auth/", include("apps.accounts.urls")),
     # OpenAPI schema & interactive docs
     path("api/v1/schema/", SpectacularAPIView.as_view(), name="schema"),

@@ -1,13 +1,14 @@
+# apps/notes/models.py
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
-from ckeditor.fields import RichTextField
+from django_ckeditor_5.fields import CKEditor5Field  # ✅ CKEditor 5
 from apps.academics.models import Subject, ClassLevel, Chapter
 
 
 class Note(models.Model):
-    """Teacher create notes using CKEditor"""
+    """Teacher created notes using CKEditor 5"""
     
     class Status(models.TextChoices):
         DRAFT = 'draft', _('Draft')
@@ -15,10 +16,20 @@ class Note(models.Model):
         PUBLISHED = 'published', _('Published')
         REJECTED = 'rejected', _('Rejected')
     
-    # Basic Info
-    title = models.CharField(max_length=255, verbose_name=_("Title"))
-    content = RichTextField(verbose_name=_("Content"), help_text=_("Write your notes using the rich text editor"))
-    description = models.TextField(blank=True, verbose_name=_("Short Description"))
+    # Basic Information
+    title = models.CharField(
+        max_length=255, 
+        verbose_name=_("Title")
+    )
+    content = CKEditor5Field(  # ✅ CKEditor 5 field
+        verbose_name=_("Content"),
+        help_text=_("Write your notes using the rich text editor"),
+        config_name='default'
+    )
+    description = models.TextField(
+        blank=True, 
+        verbose_name=_("Short Description")
+    )
     featured_image = models.ImageField(
         upload_to='notes/featured/%Y/%m/%d/',
         null=True,
@@ -28,50 +39,50 @@ class Note(models.Model):
     
     # Academic Links
     subject = models.ForeignKey(
-        Subject, 
-        on_delete=models.CASCADE, 
+        Subject,
+        on_delete=models.CASCADE,
         related_name='notes',
         verbose_name=_("Subject")
     )
     class_level = models.ForeignKey(
-        ClassLevel, 
-        on_delete=models.CASCADE, 
+        ClassLevel,
+        on_delete=models.CASCADE,
         related_name='notes',
         verbose_name=_("Class Level")
     )
     chapter = models.ForeignKey(
-        Chapter, 
-        on_delete=models.SET_NULL, 
-        null=True, 
-        blank=True, 
+        Chapter,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name='notes',
         verbose_name=_("Chapter")
     )
     
     # Author
     uploaded_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, 
-        on_delete=models.CASCADE, 
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
         related_name='uploaded_notes',
         verbose_name=_("Uploaded By")
     )
     
     # Status
     status = models.CharField(
-        max_length=20, 
-        choices=Status.choices, 
+        max_length=20,
+        choices=Status.choices,
         default=Status.DRAFT,
         verbose_name=_("Status")
     )
     
-    # Rejection Response Fields
+    # Rejection Fields
     rejection_reason = models.TextField(
-        blank=True, 
+        blank=True,
         verbose_name=_("Rejection Reason"),
         help_text=_("Reason why the note was rejected")
     )
     rejection_feedback = models.TextField(
-        blank=True, 
+        blank=True,
         verbose_name=_("Rejection Feedback"),
         help_text=_("Detailed feedback for the teacher")
     )
@@ -84,19 +95,36 @@ class Note(models.Model):
         verbose_name=_("Rejected By")
     )
     rejected_at = models.DateTimeField(
-        null=True, 
-        blank=True, 
+        null=True,
+        blank=True,
         verbose_name=_("Rejected At")
     )
     
     # Statistics
-    views = models.PositiveIntegerField(default=0, verbose_name=_("Views"))
+    views = models.PositiveIntegerField(
+        default=0,
+        verbose_name=_("Views")
+    )
     
     # Timestamps
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name=_("Created At"))
-    updated_at = models.DateTimeField(auto_now=True, verbose_name=_("Updated At"))
-    approved_at = models.DateTimeField(null=True, blank=True, verbose_name=_("Approved At"))
-    published_at = models.DateTimeField(null=True, blank=True, verbose_name=_("Published At"))
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name=_("Created At")
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        verbose_name=_("Updated At")
+    )
+    approved_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name=_("Approved At")
+    )
+    published_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name=_("Published At")
+    )
     
     class Meta:
         db_table = 'notes'
@@ -113,6 +141,7 @@ class Note(models.Model):
     def __str__(self):
         return f"{self.title} - {self.uploaded_by.phone_number}"
     
+    # Status Check Methods
     def is_draft(self):
         return self.status == self.Status.DRAFT
     
@@ -126,16 +155,21 @@ class Note(models.Model):
         return self.status == self.Status.REJECTED
     
     def can_edit(self):
+        """Check if note can be edited"""
         return self.status in [self.Status.DRAFT, self.Status.PENDING]
     
     def can_resubmit(self):
+        """Check if rejected note can be resubmitted"""
         return self.status == self.Status.REJECTED
     
+    # Action Methods
     def increment_views(self):
+        """Increment view count"""
         self.views += 1
         self.save(update_fields=['views'])
     
     def reject(self, user, reason, feedback=""):
+        """Reject the note with reason and feedback"""
         self.status = self.Status.REJECTED
         self.rejection_reason = reason
         self.rejection_feedback = feedback
@@ -144,6 +178,7 @@ class Note(models.Model):
         self.save()
     
     def resubmit(self):
+        """Resubmit a rejected note for review"""
         if self.is_rejected():
             self.status = self.Status.PENDING
             self.rejection_reason = ""
