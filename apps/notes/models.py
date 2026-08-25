@@ -1,11 +1,9 @@
-# apps/notes/models.py
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
-from django_ckeditor_5.fields import CKEditor5Field  # ✅ CKEditor 5
+from django_ckeditor_5.fields import CKEditor5Field 
 from apps.academics.models import Subject, ClassLevel, Chapter
-
 
 class Note(models.Model):
     """Teacher created notes using CKEditor 5"""
@@ -21,7 +19,7 @@ class Note(models.Model):
         max_length=255, 
         verbose_name=_("Title")
     )
-    content = CKEditor5Field(  # ✅ CKEditor 5 field
+    content = CKEditor5Field(
         verbose_name=_("Content"),
         help_text=_("Write your notes using the rich text editor"),
         config_name='default'
@@ -188,3 +186,22 @@ class Note(models.Model):
             self.save()
             return True
         return False
+    
+class OldQuestion(models.Model):
+    title=models.CharField(max_length=255)
+    content=CKEditor5Field(verbose_name="Question Content",config_name='default')
+    subject=models.ForeignKey(Subject,on_delete=models.CASCADE)
+    class_level=models.ForeignKey(ClassLevel,on_delete=models.CASCADE)
+    exam_year=models.IntegerField()
+    uploaded_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.CASCADE)
+    status = models.CharField(
+        max_length=20,
+        choices=[('pending', 'Pending'), ('published', 'Published'), ('rejected', 'Rejected')],
+        default='pending'
+    )
+    rejection_reason = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+            db_table = 'old_questions'

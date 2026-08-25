@@ -1,4 +1,3 @@
-# apps/notes/permissions.py
 from rest_framework.permissions import BasePermission
 
 
@@ -54,8 +53,6 @@ class IsAdminOrTeacherOwner(BasePermission):
             return True
         return obj.uploaded_by == request.user
 
-
-# ✅ ADD THIS NEW PERMISSION CLASS
 class IsVerifiedTeacherOrAdmin(BasePermission):
     """
     Allow only verified teachers or Admin to perform actions.
@@ -74,7 +71,6 @@ class IsVerifiedTeacherOrAdmin(BasePermission):
         if not user.is_authenticated:
             return False
         
-        # ✅ Admin has full access
         if user.role == 'admin':
             return True
         
