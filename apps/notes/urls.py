@@ -10,6 +10,13 @@ from .views import (
     NoteStatusUpdateView,
     NoteResubmitView,
     NoteRejectInfoView,
+    OldQuestionCreateView,
+    OldQuestionListView,
+    OldQuestionDetailView,
+    OldQuestionUpdateView,
+    OldQuestionDeleteView,
+    OldQuestionApprovalView,
+    MyOldQuestionsView,OldQuestionResubmitView
 )
 
 urlpatterns = [
@@ -32,10 +39,29 @@ urlpatterns = [
     # ============================================================
     # EDITOR/ADMIN ACTIONS
     # ============================================================
-    path('<int:pk>/approve/', NoteApprovalView.as_view(), name='note-approve'),  # Approve/Reject
+    path('<int:pk>/approve/', NoteApprovalView.as_view(), name='note-approve'), 
     
     # ============================================================
     # INFO
     # ============================================================
-    path('<int:pk>/reject-info/', NoteRejectInfoView.as_view(), name='note-reject-info'),  # Rejection info
+    path('<int:pk>/reject-info/', NoteRejectInfoView.as_view(), name='note-reject-info'),
+
+    path('old-questions/', OldQuestionListView.as_view(), name='old-question-list'),
+    
+    # 2. View single question (Everyone - published only)
+    path('old-questions/<int:pk>/', OldQuestionDetailView.as_view(), name='old-question-detail'),
+    
+    # 3. Create/Upload question (Teacher only)
+    path('old-questions/create/', OldQuestionCreateView.as_view(), name='old-question-create'),
+    
+    # 4. Update own question (Teacher - pending only)
+    path('old-questions/<int:pk>/update/', OldQuestionUpdateView.as_view(), name='old-question-update'),
+    
+    path('old-questions/<int:pk>/delete/', OldQuestionDeleteView.as_view(), name='old-question-delete'),
+    
+    path('old-questions/<int:pk>/approve/', OldQuestionApprovalView.as_view(), name='old-question-approve'),
+    
+    path('old-questions/my-questions/', MyOldQuestionsView.as_view(), name='old-question-my'),
+    path('old-questions/<int:pk>/resubmit/', OldQuestionResubmitView.as_view(), name='old-question-resubmit'),
+
 ]
