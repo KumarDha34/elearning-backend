@@ -347,11 +347,6 @@ class OldQuestionListSerializer(serializers.ModelSerializer):
         fields = ['id', 'title', 'content_preview', 'subject_name', 
                   'class_level_name', 'exam_year', 'uploaded_by_name', 
                   'status', 'created_at']
-    
-    def get_content_preview(self, obj):
-        if obj.content:
-            plain_text = re.sub(r'<[^>]+>', '', obj.content)
-            return plain_text[:150] + '...' if len(plain_text) > 150 else plain_text
 
     @extend_schema_field(serializers.CharField())
     def get_content_preview(self, obj):

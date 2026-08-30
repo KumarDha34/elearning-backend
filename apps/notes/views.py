@@ -1,7 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated,AllowAny,IsAdminUser
+from rest_framework.permissions import IsAuthenticated,IsAdminUser
 from django.shortcuts import get_object_or_404
 from django.db.models import Q
 from django.utils import timezone
@@ -607,7 +607,7 @@ class OldQuestionListView(APIView):
      Everyone can view (no authentication required)
      Supports filtering and search
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     @extend_schema(
         summary="List Old Questions",
@@ -680,7 +680,7 @@ class OldQuestionDetailView(APIView):
      Everyone can view published questions
      Teachers can view their own questions (any status)
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     @extend_schema(
         summary="Get Old Question Details",
@@ -1069,7 +1069,7 @@ class OldQuestionStatsView(APIView):
      Get statistics about old questions
      Everyone can view (optional)
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     @extend_schema(
         summary="Get Old Question Statistics",

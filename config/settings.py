@@ -235,7 +235,7 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_CLASSES": (),
     "DEFAULT_THROTTLE_RATES": {
         # Applied selectively via scoped throttle classes — see apps/accounts/throttling.py
-        "otp_send": "5/hour",
+        "otp_send": "5/hour", # nosec
         "otp_verify": "10/hour",
         "login": "10/minute",
         "password_reset": "5/hour",

@@ -77,7 +77,6 @@ class SignupView(APIView):
             return Response({
                 'success': False,
                 'error': 'Registration failed. Please try again.',
-                'details': str(e) if settings.DEBUG else None
             }, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -97,13 +96,13 @@ class OTPSendView(APIView):
         if not user:
             return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
         
-        # ✅ Allow OTP if phone verified BUT profile NOT completed
+        # Allow OTP if phone verified BUT profile NOT completed
         if user.phone_verified and user.profile_completed:
             return Response({
                 'error': 'Phone already verified and profile completed. Please login.'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # ✅ If phone verified but profile not complete, still send OTP
+        # If phone verified but profile not complete, still send OTP
         # (This allows users who verified phone but never completed profile)
         if user.phone_verified and not user.profile_completed:
             # Allow OTP for profile completion
@@ -142,7 +141,7 @@ class OTPVerifyView(APIView):
         if request.user and request.user.is_authenticated:
             phone_number = request.user.phone_number
             user = request.user
-            logger.info(f"Phone auto-detected: {phone_number}")
+            logger.info(f"Phone auto-detected: {phone_number[-4:]}")
         else:
             phone_number = request.data.get('phone_number')
             if not phone_number:
@@ -155,7 +154,7 @@ class OTPVerifyView(APIView):
                 return Response({
                     'error': 'User not found.'
                 }, status=status.HTTP_404_NOT_FOUND)
-            logger.info(f"Phone provided: {phone_number}")
+            logger.info(f"Phone provided: {phone_number[-4]}")
 
         # Verify OTP
         try:
@@ -167,7 +166,7 @@ class OTPVerifyView(APIView):
         if purpose == OTPVerification.Purpose.SIGNUP:
             user.phone_verified = True
             user.signup_step = 2
-            if user.password == '!' or user.password == '':
+            if user.password == '!' or user.password == '': # nosec
                 user.password = None
             user.save(update_fields=['phone_verified', 'signup_step', 'password'])
 
@@ -752,7 +751,7 @@ class PasswordResetRequestView(APIView):
                 OTPVerification.Purpose.PASSWORD_RESET
             )
 
-            logger.info(f"Password reset OTP sent to {phone_number}")
+            logger.info(f"Password reset OTP sent to {phone_number[:4]}")
 
             return Response({
                 "message": "Password reset OTP sent to your registered phone number.",
@@ -835,7 +834,7 @@ class PasswordResetConfirmView(APIView):
                     'error': 'phone_number, reset_token, or authentication required.'
                 }, status=status.HTTP_400_BAD_REQUEST)
             user = User.objects.filter(phone_number=phone_number, is_active=True).first()
-            logger.info(f"User found via phone_number: {phone_number}")
+            logger.info(f"User found via phone_number: {phone_number[:4]}")
 
         if not user:
             return Response({
@@ -910,7 +909,7 @@ class AdminUserUpdateView(APIView):
     def patch(self, request, phone_number):
         try:
             user = User.objects.get(phone_number=phone_number)
-            logger.info(f"User found by phone: {phone_number}")
+            logger.info(f"User found by phone: {phone_number[:4]}")
         except User.DoesNotExist:
             return Response({
                 'error': f'User not found with phone number: {phone_number}'

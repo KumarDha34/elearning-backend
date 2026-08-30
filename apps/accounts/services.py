@@ -5,7 +5,7 @@ from django.conf import settings
 from django.utils import timezone
 from django.db import transaction
 from .models import OTPVerification
-
+import os
 logger = logging.getLogger(__name__)
 
 
@@ -77,17 +77,18 @@ class OTPService:
 
     def _log_otp(self, phone_number: str, code: str, purpose: str):
         """Log OTP to console"""
-        print("\n" + "=" * 60)
-        print("📱 OTP VERIFICATION")
-        print("=" * 60)
-        print(f"📞 Phone: {phone_number}")
-        print(f"🔑 Code: {code}")
-        print(f"📝 Purpose: {purpose}")
-        print(f"⏰ Expires in: {self.expiry_minutes} minutes")
-        print("=" * 60)
-        print("⚠️  For development only. In production, this will be sent via SMS.\n")
+        if os.environ.get('DJANGO_DEBUG','False') == 'True':
+            print("\n" + "=" * 60)
+            print("📱 OTP VERIFICATION")
+            print("=" * 60)
+            print(f"📞 Phone: {phone_number}")
+            print(f"🔑 Code: {code}")
+            print(f"📝 Purpose: {purpose}")
+            print(f"⏰ Expires in: {self.expiry_minutes} minutes")
+            print("=" * 60)
+            print("⚠️  For development only. In production, this will be sent via SMS.\n")
 
-        logger.info(f"OTP generated for {phone_number} ({purpose}) - Code: {code}")
+        logger.info(f"OTP generated for {phone_number[-4:]} ({purpose})")
 
 
 # Singleton instance

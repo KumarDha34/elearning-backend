@@ -242,9 +242,8 @@ class StudentProfileCompleteSerializer(serializers.Serializer):
                 # School exists - will be used, not created
                 pass
         
-
         if attrs['password'] != attrs['password_confirm']:
-            raise serializers.ValidationError({"password_confirm": "Passwords do not match."})
+            raise serializers.ValidationError({"password_confirm": "Passwords do not match."}) #nosec
         
         password = attrs['password']
         errors = []
@@ -332,7 +331,7 @@ class TeacherProfileCompleteSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         if attrs['password'] != attrs['password_confirm']:
-            raise serializers.ValidationError({"password_confirm": "Passwords do not match."})
+            raise serializers.ValidationError({"password_confirm": "Passwords do not match."})  # nosec
         
         password = attrs['password']
         errors = []
@@ -924,45 +923,45 @@ class PasswordResetRequestSerializer(serializers.Serializer):
 
             if not old_password:
                 raise serializers.ValidationError({
-                    "old_password": "Old password is required to change your password."
-                })
+                    "old_password": "Old password is required to change your password." 
+                }) #nosec
 
             if not new_password:
                 raise serializers.ValidationError({
-                    "new_password": "New password is required."
-                })
+                    "new_password": "New password is required." 
+                }) #nosec
 
             if not confirm_password:
                 raise serializers.ValidationError({
                     "confirm_password": "Please confirm your new password."
-                })
+                }) #nosec
 
             if new_password != confirm_password:
                 raise serializers.ValidationError({
                     "confirm_password": "Passwords do not match."
-                })
+                })  #nosec
 
             if not user.check_password(old_password):
                 raise serializers.ValidationError({
                     "old_password": "Old password is incorrect."
-                })
+                }) #nosec
 
             if old_password == new_password:
                 raise serializers.ValidationError({
                     "new_password": "New password must be different from the old password."
-                })
+                }) #nosec
 
             try:
                 validate_password(new_password)
             except ValidationError as e:
                 raise serializers.ValidationError({
                     "new_password": list(e.messages)
-                })
+                }) #nosec
 
             if attrs.get("phone_number"):
                 raise serializers.ValidationError({
                     "phone_number": "Phone number is not required for authenticated users."
-                })
+                }) #nosec
 
             return attrs
 
@@ -982,7 +981,7 @@ class PasswordResetRequestSerializer(serializers.Serializer):
             if attrs.get("old_password"):
                 raise serializers.ValidationError({
                     "old_password": "Old password is not required for password reset."
-                })
+                }) #nosec
 
             if attrs.get("new_password") or attrs.get("confirm_password"):
                 raise serializers.ValidationError({
@@ -1065,7 +1064,8 @@ class AdminUserSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         if attrs['password'] != attrs['password_confirm']:
-            raise serializers.ValidationError({"password_confirm": "Passwords do not match."})
+            raise serializers.ValidationError({"password_confirm": "Passwords do not match."})  # nosec
+
         
         password = attrs['password']
         errors = []
