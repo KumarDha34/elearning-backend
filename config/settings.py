@@ -8,6 +8,7 @@ OpenAPI docs, and a role-based permission layer (see apps/accounts/permissions.p
 """
 
 import os
+
 from datetime import timedelta
 from pathlib import Path
 from datetime import timedelta
@@ -38,33 +39,106 @@ INSTALLED_APPS = [
     "corsheaders",
     "django_celery_beat",
     "drf_spectacular",
+    
+    # ckeditor apps
+    'django_ckeditor_5',
+    
+
     # Local apps
     "apps.accounts",
     "apps.academics",
+    "apps.notes",
 ]
 
 AUTH_USER_MODEL = 'accounts.User'
 
-
-
-
-SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
-    'ROTATE_REFRESH_TOKENS': True,
-    'BLACKLIST_AFTER_ROTATION': True,
-    'AUTH_HEADER_TYPES': ('Bearer',),
+# CKEditor Configuration
+CKEDITOR_5_CONFIGS = {
+    'default': {
+        'toolbar': {
+            'items': [
+                'heading',
+                '|',
+                'bold',
+                'italic',
+                'underline',
+                'strikethrough',
+                '|',
+                'bulletedList',
+                'numberedList',
+                '|',
+                'blockQuote',
+                'link',
+                '|',
+                'imageUpload',
+                'mediaEmbed',
+                '|',
+                'sourceEditing',
+                '|',
+                'undo',
+                'redo',
+            ]
+        },
+        'image': {
+            'toolbar': [
+                'imageTextAlternative',
+                '|',
+                'imageStyle:alignLeft',
+                'imageStyle:alignRight',
+                'imageStyle:alignCenter',
+                'imageStyle:side',
+            ],
+            'styles': [
+                'full',
+                'side',
+                'alignLeft',
+                'alignRight',
+                'alignCenter',
+            ]
+        },
+        'table': {
+            'contentToolbar': [
+                'tableColumn',
+                'tableRow',
+                'mergeTableCells',
+                'tableProperties',
+                'tableCellProperties',
+            ]
+        },
+        'heading': {
+            'options': [
+                {'model': 'paragraph', 'title': 'Paragraph', 'class': 'ck-heading_paragraph'},
+                {'model': 'heading1', 'view': 'h1', 'title': 'Heading 1', 'class': 'ck-heading_heading1'},
+                {'model': 'heading2', 'view': 'h2', 'title': 'Heading 2', 'class': 'ck-heading_heading2'},
+                {'model': 'heading3', 'view': 'h3', 'title': 'Heading 3', 'class': 'ck-heading_heading3'},
+                {'model': 'heading4', 'view': 'h4', 'title': 'Heading 4', 'class': 'ck-heading_heading4'},
+            ]
+        },
+        'language': 'en',
+    },
+    'basic': {
+        'toolbar': {
+            'items': [
+                'bold',
+                'italic',
+                '|',
+                'bulletedList',
+                'numberedList',
+                '|',
+                'undo',
+                'redo',
+            ]
+        }
+    }
 }
 
-REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
-    ),
-    'DEFAULT_PERMISSION_CLASSES': (
-        'rest_framework.permissions.AllowAny',
-    ),
-    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+CKEDITOR_5_FILE_UPLOAD = {
+    'upload_path': 'uploads/',
+    'allowed_types': ['png', 'jpeg', 'jpg', 'gif', 'webp'],
+    'max_file_size': 5 * 1024 * 1024,  # 5MB
 }
+
+
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "corsheaders.middleware.CorsMiddleware",
@@ -81,7 +155,7 @@ ROOT_URLCONF = "config.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -161,7 +235,7 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_CLASSES": (),
     "DEFAULT_THROTTLE_RATES": {
         # Applied selectively via scoped throttle classes — see apps/accounts/throttling.py
-        "otp_send": "5/hour",
+        "otp_send": "5/hour", # nosec
         "otp_verify": "10/hour",
         "login": "10/minute",
         "password_reset": "5/hour",
@@ -184,7 +258,16 @@ SPECTACULAR_SETTINGS = {
     },
     "COMPONENT_SPLIT_REQUEST": True,
     "SCHEMA_PATH_PREFIX": "/api/v1",
+    "ENUM_NAME_OVERRIDES": {
+        'NoteStatus': 'apps.notes.models.Note.Status',
+        'UserRole': 'apps.accounts.models.User.Role',
+        'TeacherProfileStatus': 'apps.accounts.models.TeacherProfile.Status',
+    },
+    "SWAGGER_UI_TEMPLATE": "swagger-ui.html",
+    
 }
+
+
 
 # ---------------------------------------------------------------------------
 # SimpleJWT
@@ -246,6 +329,11 @@ USE_TZ = True
 # Static files
 # ---------------------------------------------------------------------------
 STATIC_URL = "static/"
+
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_DIRS = [
+    BASE_DIR / 'static',
+]
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 
@@ -268,3 +356,7 @@ LOGGING = {
         "apps.accounts": {"handlers": ["console"], "level": "DEBUG" if DEBUG else "INFO", "propagate": False},
     },
 }
+
+import warnings
+
+warnings.simplefilter('ignore', category=UserWarning)
