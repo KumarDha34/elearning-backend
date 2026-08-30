@@ -34,19 +34,47 @@ from .permissions import (
 # NOTE PREVIEW VIEW - VERIFIED TEACHERS OR ADMIN
 # ============================================================================
 
+# apps/notes/views.py
+
 class NotePreviewView(APIView):
     """
     POST /api/v1/notes/preview/
-    
-     Verified teachers or Admin can preview their notes.
     """
-    permission_classes = [IsVerifiedTeacherOrAdmin] 
+    permission_classes = [IsVerifiedTeacherOrAdmin]
 
     @extend_schema(
-        summary="Preview Note (Verified Teachers or Admin Only)",
+        summary="Preview Note (Read-Only)",
         operation_id="notes_preview",
-        description="Preview note content before saving. Only verified teachers or Admin can preview.",
-        request=NotePreviewSerializer,
+        description="""
+        Generate a read-only preview of how the note will look on the website.
+        
+        **Features:**
+        - Shows formatted content with proper styling
+        - Displays images, tables, headings
+        - Preview of student view
+        - No editing or saving allowed
+        
+        **Use Case:**
+        Teachers can preview their content before publishing to see how it will appear to students.
+        """,
+        request={
+            'multipart/form-data': {
+                'type': 'object',
+                'properties': {
+                    'title': {'type': 'string', 'description': 'Note title'},
+                    'content': {'type': 'string', 'description': 'HTML content from CKEditor'},
+                    'subject': {'type': 'integer', 'description': 'Subject ID'},
+                    'class_level': {'type': 'integer', 'description': 'Class Level ID'},
+                    'chapter': {'type': 'integer', 'description': 'Chapter ID (optional)', 'nullable': True},
+                    'featured_image': {
+                        'type': 'string',
+                        'format': 'binary',
+                        'description': 'Featured image file (PNG, JPG, JPEG, GIF, WEBP)'
+                    },
+                },
+                'required': ['title', 'content', 'subject', 'class_level'],
+            }
+        },
         responses={
             200: OpenApiResponse(description="Preview generated successfully"),
             400: OpenApiResponse(description="Validation error"),
@@ -54,33 +82,83 @@ class NotePreviewView(APIView):
         }
     )
     def post(self, request):
-        serializer = NotePreviewSerializer(data=request.data)
+        # ============================================================
+        # STEP 1: Extract data from request (READ-ONLY)
+        # ============================================================
+        
+        data = request.data.copy()
+        
+        if 'featured_image' in request.FILES:
+            data['featured_image'] = request.FILES['featured_image']
+        
+        if 'chapter' in data and data['chapter'] in ['', 'null', 'undefined']:
+            data['chapter'] = None
+        
+        for field in ['subject', 'class_level', 'chapter']:
+            if field in data and data[field] not in ['', 'null', 'undefined']:
+                try:
+                    data[field] = int(data[field])
+                except (ValueError, TypeError):
+                    pass
+        
+        # ============================================================
+        # STEP 2: Generate READ-ONLY preview
+        # ============================================================
+        
+        serializer = NotePreviewSerializer(data=data)
         serializer.is_valid(raise_exception=True)
         preview_data = serializer.get_preview_data()
         
+        # ============================================================
+        # STEP 3: Return preview - NO EDITING ALLOWED
+        # ============================================================
+        
         return Response({
             'success': True,
+            'message': 'Note preview generated successfully.',
             'preview': preview_data,
-            'message': 'Note preview generated successfully.'
+            'instructions': 'This is a read-only preview. To edit, please go back to the editor.'
         }, status=status.HTTP_200_OK)
-
+        
+        
 # ============================================================================
 # NOTE CREATE VIEW - VERIFIED TEACHERS OR ADMIN
 # ============================================================================
+
+# apps/notes/views.py
 
 class NoteCreateView(APIView):
     """
     POST /api/v1/notes/
     
-     Verified teachers or Admin can create notes.
+    Verified teachers or Admin can create notes.
+    Supports multipart/form-data for file uploads.
     """
-    permission_classes = [IsVerifiedTeacherOrAdmin] 
+    permission_classes = [IsVerifiedTeacherOrAdmin]
 
     @extend_schema(
         summary="Create Note (Verified Teachers or Admin Only)",
         operation_id="notes_create",
         description="Create a new note. Only verified teachers or Admin can create notes.",
-        request=NoteCreateSerializer,
+        request={
+            'multipart/form-data': {
+                'type': 'object',
+                'properties': {
+                    'title': {'type': 'string', 'description': 'Note title'},
+                    'content': {'type': 'string', 'description': 'HTML content from CKEditor'},
+                    'description': {'type': 'string', 'description': 'Short description'},
+                    'subject': {'type': 'integer', 'description': 'Subject ID'},
+                    'class_level': {'type': 'integer', 'description': 'Class Level ID'},
+                    'chapter': {'type': 'integer', 'description': 'Chapter ID (optional)'},
+                    'featured_image': {
+                        'type': 'string',
+                        'format': 'binary',
+                        'description': 'Featured image file (PNG, JPG, JPEG, GIF, WEBP)'
+                    },
+                },
+                'required': ['title', 'content', 'subject', 'class_level'],
+            }
+        },
         responses={
             201: NoteDetailSerializer,
             400: OpenApiResponse(description="Validation error"),
@@ -88,8 +166,23 @@ class NoteCreateView(APIView):
         }
     )
     def post(self, request):
+        # ============================================================
+        # STEP 1: Extract data from request
+        # ============================================================
+    
+        # Files are in request.FILES
+        data = request.data.copy()
+        
+        # Handle featured_image if present
+        if 'featured_image' in request.FILES:
+            data['featured_image'] = request.FILES['featured_image']
+        
+        # ============================================================
+        # STEP 2: Validate and create note
+        # ============================================================
+        
         serializer = NoteCreateSerializer(
-            data=request.data,
+            data=data,
             context={'request': request}
         )
         serializer.is_valid(raise_exception=True)
@@ -99,7 +192,6 @@ class NoteCreateView(APIView):
             NoteDetailSerializer(note).data,
             status=status.HTTP_201_CREATED
         )
-    
 # ============================================================================
 # NOTE LIST VIEW - FOR EVERYONE
 # ============================================================================
@@ -317,18 +409,19 @@ class NoteDeleteView(APIView):
 # NOTE STATUS UPDATE VIEW - VERIFIED TEACHER OWNER OR ADMIN
 # ============================================================================
 
+# apps/notes/views.py
+
 class NoteStatusUpdateView(APIView):
     """
     PATCH /api/v1/notes/{id}/status/
     
-     Admin OR verified teacher who owns the note can update status.
     """
-    permission_classes = [IsAuthenticated] 
+    permission_classes = [IsAdminOrEditor]  
 
     @extend_schema(
-        summary="Update Note Status",
+        summary="Update Note Status (Editor/Admin Only)",
         operation_id="notes_status_update",
-        description="Update note status. Admin or verified teacher owner can update.",
+        description="Update note status. Only Editor or Admin can change status.",
         request=NoteStatusUpdateSerializer,
         responses={
             200: NoteDetailSerializer,
@@ -340,47 +433,26 @@ class NoteStatusUpdateView(APIView):
     def patch(self, request, pk):
         note = get_object_or_404(Note, pk=pk)
         
-        # Admin can update any note
-        if request.user.role == 'admin':
-            serializer = NoteStatusUpdateSerializer(
-                data=request.data,
-                context={'instance': note}
-            )
-            serializer.is_valid(raise_exception=True)
-            new_status = serializer.validated_data['status']
-            note.status = new_status
-            
-            if new_status == Note.Status.PUBLISHED:
-                note.published_at = timezone.now()
-            
-            note.save()
-            return Response(
-                NoteDetailSerializer(note).data,
-                status=status.HTTP_200_OK
-            )
-        
-        if not IsVerifiedTeacher().has_permission(request, self):
-            return Response({
-                'error': 'Only verified teachers can update their own notes.'
-            }, status=status.HTTP_403_FORBIDDEN)
-        
-        if note.uploaded_by != request.user:
-            return Response({
-                'error': 'Only the note owner can update status.'
-            }, status=status.HTTP_403_FORBIDDEN)
-        
+        # Permission class handles this
         serializer = NoteStatusUpdateSerializer(
             data=request.data,
             context={'instance': note}
         )
         serializer.is_valid(raise_exception=True)
-        
         new_status = serializer.validated_data['status']
+        
+        if not self._is_valid_transition(note.status, new_status):
+            return Response({
+                'error': f'Cannot change from {note.status} to {new_status}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
         note.status = new_status
         
         if new_status == Note.Status.PUBLISHED:
+            note.approved_at = timezone.now()
             note.published_at = timezone.now()
-            teacher = request.user.teacher_profile
+            
+            teacher = note.uploaded_by.teacher_profile
             teacher.content_count += 1
             teacher.save(update_fields=['content_count'])
         
@@ -390,7 +462,17 @@ class NoteStatusUpdateView(APIView):
             NoteDetailSerializer(note).data,
             status=status.HTTP_200_OK
         )
-
+    
+    def _is_valid_transition(self, current_status, new_status):
+        """Check if status transition is valid"""
+        valid_transitions = {
+            'draft': ['pending', 'published'],
+            'pending': ['published', 'rejected'],
+            'published': [],  # No transitions from published
+            'rejected': [],   # No direct transitions from rejected (use resubmit)
+        }
+        return new_status in valid_transitions.get(current_status, [])
+    
 # ============================================================================
 # NOTE APPROVAL VIEW - EDITOR/ADMIN ONLY
 # ============================================================================

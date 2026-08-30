@@ -267,7 +267,7 @@ class NoteResubmitSerializer(serializers.Serializer):
 
 
 class NotePreviewSerializer(serializers.Serializer):
-    """Serializer for previewing note content"""
+    """Serializer for previewing note content (READ-ONLY)"""
     
     title = serializers.CharField(max_length=255)
     content = serializers.CharField()
@@ -275,7 +275,53 @@ class NotePreviewSerializer(serializers.Serializer):
     class_level = serializers.IntegerField()
     chapter = serializers.IntegerField(required=False, allow_null=True)
     
+    def validate_content(self, value):
+        """Validate CKEditor content is not empty"""
+        if not value or value.strip() in ['', '<p><br></p>', '<p>&nbsp;</p>']:
+            raise serializers.ValidationError("Content cannot be empty")
+        
+        # Optional: Check minimum text length
+        import re
+        plain_text = re.sub(r'<[^>]+>', '', value).strip()
+        if len(plain_text) < 10:
+            raise serializers.ValidationError("Content must have at least 10 characters of text")
+        
+        return value
+    
+    def validate(self, data):
+        """Validate subject and class_level exist"""
+        try:
+            subject = Subject.objects.get(id=data['subject'])
+        except Subject.DoesNotExist:
+            raise serializers.ValidationError({
+                'subject': f'Subject with ID {data["subject"]} does not exist'
+            })
+        
+        try:
+            class_level = ClassLevel.objects.get(id=data['class_level'])
+        except ClassLevel.DoesNotExist:
+            raise serializers.ValidationError({
+                'class_level': f'Class Level with ID {data["class_level"]} does not exist'
+            })
+        
+        # Optional: Validate chapter if provided
+        if data.get('chapter'):
+            try:
+                chapter = Chapter.objects.get(id=data['chapter'])
+                # Verify chapter belongs to subject
+                if chapter.subject_id != data['subject']:
+                    raise serializers.ValidationError({
+                        'chapter': f'Chapter {data["chapter"]} does not belong to subject {data["subject"]}'
+                    })
+            except Chapter.DoesNotExist:
+                raise serializers.ValidationError({
+                    'chapter': f'Chapter with ID {data["chapter"]} does not exist'
+                })
+        
+        return data
+    
     def get_preview_data(self):
+        """Generate READ-ONLY preview data"""
         subject = Subject.objects.get(id=self.validated_data['subject'])
         class_level = ClassLevel.objects.get(id=self.validated_data['class_level'])
         

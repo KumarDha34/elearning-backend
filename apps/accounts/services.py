@@ -37,7 +37,7 @@ class OTPService:
             otp_code=code,
             purpose=purpose,
             max_attempts=self.max_attempts,
-            created_at=now,  # ✅ Explicitly set
+            created_at=now,  # Explicitly set
             expires_at=now + timezone.timedelta(minutes=self.expiry_minutes)  # ✅ Set expiry
         )
         otp.save()
