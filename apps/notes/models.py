@@ -188,6 +188,10 @@ class Note(models.Model):
         return False
     
 class OldQuestion(models.Model):
+    class Status(models.TextChoices):
+        PENDING = 'pending', 'Pending'
+        PUBLISHED = 'published', 'Published'
+        REJECTED = 'rejected', 'Rejected'
     title=models.CharField(max_length=255)
     content=CKEditor5Field(verbose_name="Question Content",config_name='default')
     subject=models.ForeignKey(Subject,on_delete=models.CASCADE)
@@ -196,8 +200,8 @@ class OldQuestion(models.Model):
     uploaded_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.CASCADE)
     status = models.CharField(
         max_length=20,
-        choices=[('pending', 'Pending'), ('published', 'Published'), ('rejected', 'Rejected')],
-        default='pending'
+        choices=Status.choices, 
+        default=Status.PENDING,
     )
     rejection_reason = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

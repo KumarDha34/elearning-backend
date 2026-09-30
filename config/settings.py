@@ -234,7 +234,6 @@ REST_FRAMEWORK = {
     "PAGE_SIZE": 20,
     "DEFAULT_THROTTLE_CLASSES": (),
     "DEFAULT_THROTTLE_RATES": {
-        # Applied selectively via scoped throttle classes — see apps/accounts/throttling.py
         "otp_send": "5/hour", # nosec
         "otp_verify": "10/hour",
         "login": "10/minute",
@@ -260,6 +259,7 @@ SPECTACULAR_SETTINGS = {
     "SCHEMA_PATH_PREFIX": "/api/v1",
     "ENUM_NAME_OVERRIDES": {
         'NoteStatus': 'apps.notes.models.Note.Status',
+        'OldQuestionStatus': 'apps.notes.models.OldQuestion.Status', 
         'UserRole': 'apps.accounts.models.User.Role',
         'TeacherProfileStatus': 'apps.accounts.models.TeacherProfile.Status',
     },

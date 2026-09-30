@@ -52,7 +52,7 @@ def validate_verification_document(value):
     Validate verification documents: Only PDF allowed
     """
     # Allowed extensions
-    allowed_extensions = ['pdf']
+    allowed_extensions = ['pdf','jpg','jpeg','png','webp']
     
     # Get file extension
     ext = os.path.splitext(value.name)[1].lower().replace('.', '')
