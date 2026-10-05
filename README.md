@@ -1,27 +1,6 @@
 # E-Learning Platform for Nepal - Backend API
 
 Production-ready backend API for a Nepal-focused E-Learning platform. Built with Django REST Framework to serve web and mobile clients.
-
----
-
-## 📋 Table of Contents
-
-- [Overview](#overview)
-- [Features](#features)
-- [Tech Stack](#tech-stack)
-- [Architecture](#architecture)
-- [Project Structure](#project-structure)
-- [Setup Instructions](#setup-instructions)
-- [Environment Variables](#environment-variables)
-- [API Documentation](#api-documentation)
-- [User Roles](#user-roles)
-- [Content Workflow](#content-workflow)
-- [Testing](#testing)
-- [Deployment](#deployment)
-- [Security](#security)
-- [Team](#team)
-- [License](#license)
-
 ---
 
 ## 🎯 Overview
