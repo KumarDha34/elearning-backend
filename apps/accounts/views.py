@@ -281,7 +281,7 @@ class StudentProfileCompleteView(APIView):
             if existing_school:
                 
                 school = existing_school
-                logger.info(f"Student {user.phone_number} used existing school: {school_name} at {school_address}")
+                logger.info(f"Student {user.phone_number[:4]} used existing school: {school_name}")
             else:
                 
                 same_name_school = School.objects.filter(
@@ -299,7 +299,7 @@ class StudentProfileCompleteView(APIView):
                     is_verified=False,  
                     created_by=user
                 )
-                logger.info(f"Student {user.phone_number} created new school: {school_name} at {school_address} (unverified)")
+                logger.info(f"Student {user.phone_number[:4]} created new school: {school_name} (unverified)")
         
        
         elif school:
@@ -809,7 +809,7 @@ class PasswordResetConfirmView(APIView):
                     }, status=status.HTTP_400_BAD_REQUEST)
 
                 user = User.objects.filter(phone_number=phone_number, is_active=True).first()
-                logger.info(f"User found via reset_token: {phone_number}")
+                logger.info(f"User found via reset_token: {phone_number[:4]}")
 
             except jwt.ExpiredSignatureError:
                 return Response({
@@ -824,7 +824,7 @@ class PasswordResetConfirmView(APIView):
         elif request.user and request.user.is_authenticated:
             user = request.user
             phone_number = user.phone_number
-            logger.info(f"User found via authentication token: {phone_number}")
+            logger.info(f"User found via authentication token: {phone_number[:4]}")
 
         # Option 3: Using phone_number (legacy)
         else:
@@ -845,7 +845,7 @@ class PasswordResetConfirmView(APIView):
         user.set_password(new_password)
         user.save(update_fields=['password'])
 
-        logger.info(f"Password reset successful for user: {phone_number}")
+        logger.info(f"Password reset successful for user: {phone_number[:4]}")
 
         return Response({
             'message': 'Password reset successfully. Please login with your new password.'
@@ -909,7 +909,7 @@ class AdminUserUpdateView(APIView):
     def patch(self, request, phone_number):
         try:
             user = User.objects.get(phone_number=phone_number)
-            logger.info(f"User found by phone: {phone_number[:4]}")
+            logger.info(f"User found by phone:  {phone_number[:4]}")
         except User.DoesNotExist:
             return Response({
                 'error': f'User not found with phone number: {phone_number}'
@@ -943,7 +943,7 @@ class AdminUserUpdateView(APIView):
 
         user.save(update_fields=allowed_fields)
 
-        logger.info(f"Admin {request.user.phone_number} updated user {user.phone_number}: {', '.join(updated_fields)}")
+        logger.info(f"Admin {request.user.phone_number[-4:]} updated user {user.phone_number[-4:]}")
 
         return Response({
             'message': 'User updated successfully.',
@@ -1019,14 +1019,14 @@ class AdminVerifyTeacherView(APIView):
         
         if verified:
             profile.status = TeacherProfile.Status.VERIFIED
-            message = f'Teacher {phone_number} has been verified.'
+            message = f'Teacher {phone_number[:4]} has been verified.'
         else:
             profile.status = TeacherProfile.Status.NOT_VERIFIED
-            message = f'Teacher {phone_number} has been unverified.'
+            message = f'Teacher {phone_number[:4]} has been unverified.'
 
         profile.save(update_fields=['status'])
 
-        logger.info(f"Admin {request.user.phone_number} {message}")
+        logger.info(f"Admin {request.user.phone_number[:4]} {message}")
 
         return Response({
             'message': message,

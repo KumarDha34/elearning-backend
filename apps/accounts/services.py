@@ -72,7 +72,7 @@ class OTPService:
             raise ValueError(f"Invalid code. {remaining} attempts remaining.")
 
         otp.mark_verified()
-        logger.info(f"OTP verified for {phone_number} ({purpose})")
+        logger.info(f"OTP verified for {phone_number[:4]} ({purpose})")
         return True
 
     def _log_otp(self, phone_number: str, code: str, purpose: str):
@@ -81,7 +81,7 @@ class OTPService:
             print("\n" + "=" * 60)
             print("📱 OTP VERIFICATION")
             print("=" * 60)
-            print(f"📞 Phone: {phone_number}")
+            print(f"📞 Phone: {phone_number[:4]}")
             print(f"🔑 Code: {code}")
             print(f"📝 Purpose: {purpose}")
             print(f"⏰ Expires in: {self.expiry_minutes} minutes")

@@ -101,7 +101,7 @@ class SignupSerializer(serializers.Serializer):
     role = serializers.ChoiceField(choices=[('student', 'Student'), ('instructor', 'Instructor')])
 
     def validate_phone_number(self, value):
-        if User.objects.filter(phone_number=value).exists():
+        if User.objects.filter(phone_number=value).first():
             raise serializers.ValidationError("Phone number already exists.")
         return value
 
@@ -243,7 +243,7 @@ class StudentProfileCompleteSerializer(serializers.Serializer):
                 pass
         
         if attrs['password'] != attrs['password_confirm']:
-            raise serializers.ValidationError({"password_confirm": "Passwords do not match."}) #nosec
+            raise serializers.ValidationError({"password_confirm": "Passwords do not match."}) # nosec
         
         password = attrs['password']
         errors = []
