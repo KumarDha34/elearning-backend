@@ -11,7 +11,19 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.views import TokenObtainPairView
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 from django.conf import settings
+from datetime import timedelta
+
+from django.conf import settings
+from django.utils import timezone
+from django.db import transaction
 import datetime
+
+from .authentication import SignupTokenAuthentication
+from .permissions import HasSignupToken
+
+import jwt
+from .tokens import create_signup_token
+
 
 from .serializers import (
     SignupSerializer,
@@ -47,37 +59,73 @@ User = get_user_model()
 # ============================================================================
 
 class SignupView(APIView):
-    """Step 1: User registration with phone number"""
+    """
+    Step 1: Capture phone + role, send OTP.
+    - No User row is created here.
+    - No session tokens are issued here.
+    - The User is created only after OTP verification.
+    """
     permission_classes = [AllowAny]
     serializer_class = SignupSerializer
 
     @extend_schema(request=SignupSerializer)
-    @transaction.atomic
     def post(self, request):
+        serializer = SignupSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        phone_number = serializer.validated_data['phone_number']
+        role = serializer.validated_data['role']
+
+        # ── Check for existing user ──
+        existing = User.objects.filter(phone_number=phone_number).first()
+
+        if existing and existing.profile_completed:
+            return Response(
+                {'error': 'Account already exists. Please log in.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # ── Decide purpose: RESUME if half-registered, SIGNUP otherwise ──
+        if existing and existing.phone_verified and not existing.profile_completed:
+            purpose = OTPVerification.Purpose.RESUME
+            action = 'resume_signup'
+        else:
+            purpose = OTPVerification.Purpose.SIGNUP
+            action = 'signup'
+
+        # ── Cooldown to prevent OTP spam ──
+        recent = OTPVerification.objects.filter(
+            phone_number=phone_number,
+            created_at__gte=timezone.now() - timedelta(seconds=60),
+        ).exists()
+        if recent:
+            return Response(
+                {'error': 'Please wait before requesting another OTP.'},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
+        # ── Create OTP row (with role). NOT a User. ──
         try:
-            serializer = SignupSerializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
-            user = serializer.save()
-
-            otp = otp_service.generate_otp(user.phone_number, OTPVerification.Purpose.SIGNUP)
-            refresh = RefreshToken.for_user(user)
-
-            return Response({
-                'message': 'Step 1 complete. Verify your phone.',
-                'step': 1,
-                'next': 'otp_verification',
-                'phone_number': user.phone_number,
-                'user': UserSerializer(user).data,
-                'access': str(refresh.access_token),
-                'refresh': str(refresh),
-            }, status=status.HTTP_201_CREATED)
-
+            otp = otp_service.generate_otp(
+                phone_number=phone_number,
+                purpose=purpose,
+                pending_role=role,
+            )
         except Exception as e:
-            logger.error(f"Signup failed: {str(e)}")
-            return Response({
-                'success': False,
-                'error': 'Registration failed. Please try again.',
-            }, status=status.HTTP_400_BAD_REQUEST)
+            logger.error(f"OTP send failed for {phone_number[:4]}***: {e}")
+            return Response(
+                {'error': 'Could not send OTP. Please try again.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response({
+            'message': 'OTP sent successfully.',
+            'step': 1,
+            'next': 'verify_otp',
+            'action': action,
+            'phone_number': phone_number,
+            'expires_in': otp_service.expiry_minutes * 60,
+        }, status=status.HTTP_201_CREATED)
 
 
 class OTPSendView(APIView):
@@ -106,7 +154,23 @@ class OTPSendView(APIView):
         # (This allows users who verified phone but never completed profile)
         if user.phone_verified and not user.profile_completed:
             # Allow OTP for profile completion
-            pass
+            purpose = OTPVerification.Purpose.RESUME
+            action = 'resume_signup'
+        else:
+            # phone_verified=False → first-time signup
+            purpose = OTPVerification.Purpose.SIGNUP
+            action = 'signup'
+
+        # ── Cooldown check (prevent spam) ──
+        recent = OTPVerification.objects.filter(
+            phone_number=phone_number,
+            created_at__gte=timezone.now() - timedelta(seconds=60),
+        ).exists()
+        if recent:
+            return Response(
+                {'error': 'Please wait before requesting another OTP.'},
+                status=status.HTTP_429_TOO_MANY_REQUESTS
+            )
 
         otp = otp_service.generate_otp(phone_number, OTPVerification.Purpose.SIGNUP)
 
@@ -121,7 +185,7 @@ class OTPSendView(APIView):
 
 class OTPVerifyView(APIView):
     """
-    UNIFIED OTP Verification - Handles BOTH Signup AND Password Reset
+    UNIFIED OTP Verification — handles SIGNUP, RESUME, and PASSWORD_RESET.
     """
     permission_classes = [AllowAny]
     serializer_class = OTPVerifySerializer
@@ -130,79 +194,123 @@ class OTPVerifyView(APIView):
     def post(self, request):
         serializer = OTPVerifySerializer(
             data=request.data,
-            context={'request': request}
+            context={'request': request},
         )
         serializer.is_valid(raise_exception=True)
 
         otp_code = serializer.validated_data['otp']
-        purpose = serializer.validated_data.get('purpose', OTPVerification.Purpose.SIGNUP)
+        purpose = serializer.validated_data.get(
+            'purpose', OTPVerification.Purpose.SIGNUP
+        )
+        phone_number = serializer.validated_data.get('phone_number')
 
-        # Get phone number and user
-        if request.user and request.user.is_authenticated:
-            phone_number = request.user.phone_number
-            user = request.user
-            logger.info(f"Phone auto-detected: {phone_number[-4:]}")
-        else:
-            phone_number = request.data.get('phone_number')
-            if not phone_number:
-                return Response({
-                    'error': 'phone_number required for unauthenticated users.'
-                }, status=status.HTTP_400_BAD_REQUEST)
+        if not phone_number:
+            return Response(
+                {'error': 'phone_number is required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-            user = User.objects.filter(phone_number=phone_number).first()
-            if not user:
-                return Response({
-                    'error': 'User not found.'
-                }, status=status.HTTP_404_NOT_FOUND)
-            logger.info(f"Phone provided: {phone_number[-4]}")
-
-        # Verify OTP
+        # ── Verify OTP FIRST ──
+        # Do NOT look up the user before this. For SIGNUP, no User exists yet.
         try:
-            otp_service.verify_otp(phone_number, purpose, otp_code)
+            otp = otp_service.verify_otp(phone_number, purpose, otp_code)
         except ValueError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Handle different purposes
+        # ─────────────────────────────────────────────
+        # SIGNUP — create the User now (first time)
+        # ─────────────────────────────────────────────
         if purpose == OTPVerification.Purpose.SIGNUP:
-            user.phone_verified = True
-            user.signup_step = 2
-            if user.password == '!' or user.password == '': # nosec
-                user.password = None
-            user.save(update_fields=['phone_verified', 'signup_step', 'password'])
+            user, created = User.objects.get_or_create(
+                phone_number=phone_number,
+                defaults={
+                    'role': otp.pending_role or 'student',
+                    'phone_verified': True,
+                    'profile_completed': False,
+                    'signup_step': 2,
+                    'full_name': '',
+                    'password': None,
+                },
+            )
 
-            refresh = RefreshToken.for_user(user)
+            # If the row already existed (edge case), just update flags
+            if not created:
+                user.phone_verified = True
+                user.signup_step = 2
+                user.save(update_fields=['phone_verified', 'signup_step'])
+
+            signup_token = create_signup_token(user)
             return Response({
-                'message': 'Phone verified successfully!',
+                'message': 'Phone verified successfully.',
                 'step': 2,
                 'next': 'complete_profile',
+                'action': 'signup',
                 'phone_verified': True,
-                'access': str(refresh.access_token),
-                'refresh': str(refresh),
-                'user': UserSerializer(user).data
+                'profile_completed': False,
+                'signup_token': signup_token,
+                'user': UserSerializer(user).data,
             }, status=status.HTTP_200_OK)
 
-        elif purpose == OTPVerification.Purpose.PASSWORD_RESET:
-            import jwt
+        # ─────────────────────────────────────────────
+        # RESUME — user already exists, just re-issue token
+        # ─────────────────────────────────────────────
+        if purpose == OTPVerification.Purpose.RESUME:
+            user = User.objects.filter(phone_number=phone_number).first()
+            if not user:
+                # Can't resume a user that doesn't exist
+                return Response(
+                    {'error': 'No signup in progress for this number.'},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+            if user.profile_completed:
+                return Response(
+                    {'error': 'Profile already completed. Please log in.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            signup_token = create_signup_token(user)
+            return Response({
+                'message': 'Welcome back. Please finish setting up your account.',
+                'step': 2,
+                'next': 'complete_profile',
+                'action': 'resume_signup',
+                'phone_verified': True,
+                'profile_completed': False,
+                'signup_token': signup_token,
+                'user': UserSerializer(user).data,
+            }, status=status.HTTP_200_OK)
+
+        # ─────────────────────────────────────────────
+        # PASSWORD_RESET — user must already exist
+        # ─────────────────────────────────────────────
+        if purpose == OTPVerification.Purpose.PASSWORD_RESET:
+            user = User.objects.filter(phone_number=phone_number, is_active=True).first()
+            if not user:
+                return Response(
+                    {'error': 'User not found.'},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
             reset_token = jwt.encode(
                 {
                     'phone': phone_number,
                     'purpose': 'reset',
-                    'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=5)
+                    'exp': timezone.now() + timedelta(minutes=5),
                 },
                 settings.SECRET_KEY,
-                algorithm='HS256'
+                algorithm='HS256',
             )
-
             return Response({
-                'message': 'OTP verified successfully. You can now reset your password.',
+                'message': 'OTP verified. You can now reset your password.',
                 'verified': True,
                 'reset_token': reset_token,
-                'phone_number': phone_number
+                'phone_number': phone_number,
             }, status=status.HTTP_200_OK)
 
+        # Fallback (shouldn't be reachable with valid purposes)
         return Response({
             'message': 'OTP verified successfully.',
-            'verified': True
+            'verified': True,
         }, status=status.HTTP_200_OK)
 
 
@@ -216,6 +324,7 @@ class StudentProfileCompleteView(APIView):
     """
     Step 2: Complete Student Profile 
     """
+    authentication_classes = [SignupTokenAuthentication]
     permission_classes = [IsAuthenticated, IsActiveUser, IsPhoneVerified]
     serializer_class = StudentProfileCompleteSerializer
 
@@ -224,6 +333,7 @@ class StudentProfileCompleteView(APIView):
             'multipart/form-data': {
                 'type': 'object',
                 'properties': {
+                    'full_name': {'type': 'string'},
                     'school': {'type': 'integer', 'description': 'School ID'},
                     'school_name': {'type': 'string', 'description': 'School name (use this if adding new school)'},
                     'school_type': {'type': 'string', 'enum': ['school', 'college', 'university']},
@@ -356,6 +466,7 @@ class TeacherProfileCompleteView(APIView):
     """
     Step 2: Complete Teacher Profile 
     """
+    authentication_classes = [SignupTokenAuthentication]
     permission_classes = [IsAuthenticated, IsActiveUser, IsPhoneVerified]
     serializer_class = TeacherProfileCompleteSerializer
 
@@ -364,6 +475,7 @@ class TeacherProfileCompleteView(APIView):
             'multipart/form-data': {
                 'type': 'object',
                 'properties': {
+                    'full_name': {'type': 'string'},
                     'faculty': {'type': 'integer', 'description': 'Faculty ID '},
                     'subjects': {'type': 'array', 'items': {'type': 'integer'}, 'description': 'List of subject IDs'},
                     'schools': {'type': 'array', 'items': {'type': 'integer'}, 'description': 'List of school IDs'},

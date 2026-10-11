@@ -91,9 +91,6 @@ class TeacherProfileSerializer(serializers.ModelSerializer):
 class SignupSerializer(serializers.Serializer):
     """Step 1: User registration with phone number"""
     
-    first_name = serializers.CharField(max_length=150)
-    middle_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
-    last_name = serializers.CharField(max_length=150)
     phone_number = serializers.CharField(
         max_length=10,
         validators=[validate_nepali_phone_number]
@@ -101,23 +98,15 @@ class SignupSerializer(serializers.Serializer):
     role = serializers.ChoiceField(choices=[('student', 'Student'), ('instructor', 'Instructor')])
 
     def validate_phone_number(self, value):
-        if User.objects.filter(phone_number=value).first():
-            raise serializers.ValidationError("Phone number already exists.")
+        # Only block if a FULLY-REGISTERED account exists.
+        # Half-registered accounts (phone_verified=True, profile_completed=False)
+        # must be allowed to resume.
+        existing = User.objects.filter(phone_number=value).first()
+        if existing and existing.profile_completed:
+            raise serializers.ValidationError(
+                'An account with this phone number already exists. Please log in.'
+            )
         return value
-
-    def create(self, validated_data):
-        phone_number = validated_data.pop('phone_number')
-        return User.objects.create_user(
-            phone_number=phone_number,
-            first_name=validated_data.get('first_name'),
-            middle_name=validated_data.get('middle_name', ''),
-            last_name=validated_data.get('last_name'),
-            role=validated_data.get('role'),
-            phone_verified=False,
-            is_active=True,
-            signup_step=1,
-            profile_completed=False
-        )
 
 
 # ============================================================================
@@ -128,6 +117,13 @@ class SignupSerializer(serializers.Serializer):
 
 class StudentProfileCompleteSerializer(serializers.Serializer):
     """Step 2: Complete Student Profile with Academics ForeignKeys"""
+    
+    full_name = serializers.CharField(
+        max_length=300,
+        required=True,
+        allow_blank=False,
+        help_text='Full name as it should appear, e.g. "Ram Bahadur Thapa".',
+    )
     
     # Academics ForeignKeys (Send IDs from dropdown)
     school = serializers.PrimaryKeyRelatedField(
@@ -276,6 +272,13 @@ class StudentProfileCompleteSerializer(serializers.Serializer):
 
 class TeacherProfileCompleteSerializer(serializers.Serializer):
     """Step 2: Complete Teacher Profile with Academics ForeignKeys"""
+    
+    
+    full_name = serializers.CharField(
+        max_length=300,
+        required=True,
+        allow_blank=False,
+    )
     
     # Academics ForeignKeys (Send IDs from dropdown)
     faculty = serializers.PrimaryKeyRelatedField(
@@ -654,7 +657,7 @@ class TeacherProfileUpdateSerializer(serializers.Serializer):
 # ============================================================================
 
 class UserSerializer(serializers.ModelSerializer):
-    full_name = serializers.SerializerMethodField()
+    # full_name = serializers.SerializerMethodField()  is now a real model field
     has_profile = serializers.SerializerMethodField()
     profile = serializers.SerializerMethodField()
     permissions = serializers.SerializerMethodField()
@@ -665,8 +668,8 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = (
-            'id', 'first_name', 'middle_name', 'last_name', 'full_name',
-            'phone_number', 'email', 'username', 'role',
+            'id', 'full_name',
+            'phone_number', 'email', 'role',
             'phone_verified', 'profile_completed', 'signup_step',
             'is_active', 'is_staff', 'is_superuser',
             'created_at', 'updated_at',
@@ -674,10 +677,6 @@ class UserSerializer(serializers.ModelSerializer):
             'has_password', 'is_verified_teacher'
         )
         read_only_fields = fields
-
-    @extend_schema_field(serializers.CharField())
-    def get_full_name(self, obj):
-        return obj.get_full_name()
     
     @extend_schema_field(serializers.BooleanField())
     def get_has_profile(self, obj):
@@ -765,11 +764,12 @@ class OTPVerifySerializer(serializers.Serializer):
     purpose = serializers.ChoiceField(
         choices=[
             ('signup', 'Signup Verification'),
+            ('resume', 'Resume Signup'),
             ('password_reset', 'Password Reset')
         ],
         default='signup',
         required=False,
-        help_text="Purpose: 'signup' or 'password_reset'"
+        help_text="Purpose: 'signup', 'resume' or 'password_reset'"
     )
     phone_number = serializers.CharField(
         allow_blank=True,   
@@ -1040,9 +1040,7 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
 # ============================================================================
 
 class AdminUserSerializer(serializers.Serializer):
-    first_name = serializers.CharField(max_length=150)
-    middle_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
-    last_name = serializers.CharField(max_length=150)
+    full_name = serializers.CharField(max_length=300)
     phone_number = serializers.CharField(
         max_length=10,
         validators=[validate_nepali_phone_number]
@@ -1051,6 +1049,12 @@ class AdminUserSerializer(serializers.Serializer):
     role = serializers.ChoiceField(choices=[('editor', 'Editor')])
     password = serializers.CharField(write_only=True)
     password_confirm = serializers.CharField(write_only=True)
+    
+    def validate_full_name(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError('Full name is required.')
+        return value
 
     def validate_phone_number(self, value):
         if User.objects.filter(phone_number=value).exists():
@@ -1096,9 +1100,7 @@ class AdminUserSerializer(serializers.Serializer):
         return User.objects.create_editor(
             phone_number=validated_data['phone_number'],
             password=validated_data['password'],
-            first_name=validated_data['first_name'],
-            middle_name=validated_data.get('middle_name', ''),
-            last_name=validated_data['last_name'],
+            full_name=validated_data['full_name'],
             email=validated_data.get('email', '')
         )
 

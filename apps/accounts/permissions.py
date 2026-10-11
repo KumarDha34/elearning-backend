@@ -1,6 +1,10 @@
 from rest_framework.permissions import BasePermission, SAFE_METHODS
 
 
+# ============================================================================
+# ROLE-BASED PERMISSIONS
+# ============================================================================
+
 class IsAdmin(BasePermission):
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.is_admin
@@ -20,14 +24,18 @@ class IsEditor(BasePermission):
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.is_editor
 
+
 class IsVerifiedTeacher(BasePermission):
-    """Permission for verified teachers only"""
+    """Permission for verified teachers only."""
     message = "Teacher account not verified. Please upload verification document and wait for approval."
 
     def has_permission(self, request, view):
-        return (request.user.is_authenticated and 
-                request.user.is_instructor and 
-                request.user.is_verified_teacher)
+        return (
+            request.user.is_authenticated
+            and request.user.is_instructor
+            and request.user.is_verified_teacher
+        )
+
 
 class IsAdminOrReadOnly(BasePermission):
     def has_permission(self, request, view):
@@ -50,6 +58,10 @@ class IsAdminOrInstructor(BasePermission):
         )
 
 
+# ============================================================================
+# ACCOUNT STATE PERMISSIONS
+# ============================================================================
+
 class IsActiveUser(BasePermission):
     message = "Account is deactivated."
 
@@ -71,41 +83,76 @@ class HasCompletedProfile(BasePermission):
         return request.user.is_authenticated and request.user.profile_completed
 
 
+# ============================================================================
+# OBJECT-LEVEL PERMISSIONS
+# ============================================================================
+
 class IsOwner(BasePermission):
     def has_object_permission(self, request, view, obj):
         if request.method in SAFE_METHODS:
             return True
-        
+
         owner_attrs = ['user', 'owner', 'student', 'author', 'created_by']
         for attr in owner_attrs:
             if hasattr(obj, attr):
                 owner = getattr(obj, attr)
                 if owner and owner == request.user:
                     return True
-        
+
         return False
 
 
+# ============================================================================
+# COMPOSITE PERMISSIONS
+# ============================================================================
+
 class IsStudentWithProfile(BasePermission):
     def has_permission(self, request, view):
-        return (request.user.is_authenticated and
-                request.user.is_student and
-                request.user.profile_completed and
-                request.user.is_active)
+        return (
+            request.user.is_authenticated
+            and request.user.is_student
+            and request.user.profile_completed
+            and request.user.is_active
+        )
 
 
 class IsInstructorWithProfile(BasePermission):
     def has_permission(self, request, view):
-        return (request.user.is_authenticated and
-                request.user.is_instructor and
-                request.user.profile_completed and
-                request.user.is_active)
-    
+        return (
+            request.user.is_authenticated
+            and request.user.is_instructor
+            and request.user.profile_completed
+            and request.user.is_active
+        )
+
+
 class IsVerifiedInstructorWithProfile(BasePermission):
-    """For instructors who are verified and can perform operations"""
+    """For instructors who are verified and can perform operations."""
     def has_permission(self, request, view):
-        return (request.user.is_authenticated and
-                request.user.is_instructor and
-                request.user.is_verified_teacher and
-                request.user.profile_completed and
-                request.user.is_active)
+        return (
+            request.user.is_authenticated
+            and request.user.is_instructor
+            and request.user.is_verified_teacher
+            and request.user.profile_completed
+            and request.user.is_active
+        )
+
+
+# ============================================================================
+# SIGNUP FLOW
+# ============================================================================
+
+class HasSignupToken(BasePermission):
+    """
+    Requires a request authenticated via SignupTokenAuthentication
+    with scope='signup:complete'.
+
+    All token validation (signature, expiry, token type, user lookup)
+    happens in SignupTokenAuthentication. This class only checks the scope.
+    """
+    message = 'A valid signup token is required to complete your profile.'
+
+    def has_permission(self, request, view):
+        if not request.auth:
+            return False
+        return request.auth.get('scope') == 'signup:complete'
