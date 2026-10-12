@@ -658,6 +658,7 @@ class TeacherProfileUpdateSerializer(serializers.Serializer):
 
 class UserSerializer(serializers.ModelSerializer):
     # full_name = serializers.SerializerMethodField()  is now a real model field
+    phone_number = serializers.SerializerMethodField()
     has_profile = serializers.SerializerMethodField()
     profile = serializers.SerializerMethodField()
     permissions = serializers.SerializerMethodField()
@@ -677,6 +678,11 @@ class UserSerializer(serializers.ModelSerializer):
             'has_password', 'is_verified_teacher'
         )
         read_only_fields = fields
+    def get_phone_number(self, obj):                    
+        """Return masked phone: 9812347001 → ****7001"""
+        if not obj.phone_number:
+            return ""
+        return f"****{obj.phone_number[-4:]}"
     
     @extend_schema_field(serializers.BooleanField())
     def get_has_profile(self, obj):

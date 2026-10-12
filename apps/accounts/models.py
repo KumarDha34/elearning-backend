@@ -17,6 +17,8 @@ class User(AbstractUser):
         EDITOR = 'editor', 'Editor'
 
     # ── Remove AbstractUser's username entirely ──
+    first_name = None  
+    last_name = None
     username = None
 
     # ── The single name field ──
