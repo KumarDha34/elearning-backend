@@ -121,6 +121,7 @@ class SignupView(APIView):
         return Response({
             'message': 'OTP sent successfully.',
             'step': 1,
+            'role':role,
             'next': 'verify_otp',
             'action': action,
             'phone_number': f"****{phone_number[-4:]}",
