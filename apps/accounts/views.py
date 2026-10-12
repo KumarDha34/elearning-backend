@@ -88,7 +88,7 @@ class SignupView(APIView):
         # ── Decide purpose: RESUME if half-registered, SIGNUP otherwise ──
         if existing and existing.phone_verified and not existing.profile_completed:
             purpose = OTPVerification.Purpose.RESUME
-            action = 'resume_signup'
+            action = 'resume'
         else:
             purpose = OTPVerification.Purpose.SIGNUP
             action = 'signup'
@@ -156,7 +156,7 @@ class OTPSendView(APIView):
         if user.phone_verified and not user.profile_completed:
             # Allow OTP for profile completion
             purpose = OTPVerification.Purpose.RESUME
-            action = 'resume_signup'
+            action = 'resume'
         else:
             # phone_verified=False → first-time signup
             purpose = OTPVerification.Purpose.SIGNUP
@@ -278,7 +278,7 @@ class OTPVerifyView(APIView):
                 'message': 'Welcome back. Please finish setting up your account.',
                 'step': 2,
                 'next': 'complete_profile',
-                'action': 'resume_signup',
+                'action': 'resume',
                 'phone_verified': True,
                 'profile_completed': False,
                 'signup_token': signup_token,
