@@ -259,10 +259,15 @@ SPECTACULAR_SETTINGS = {
     "COMPONENT_SPLIT_REQUEST": True,
     "SCHEMA_PATH_PREFIX": "/api/v1",
     "ENUM_NAME_OVERRIDES": {
-        'NoteStatus': 'apps.notes.models.Note.Status',
-        'OldQuestionStatus': 'apps.notes.models.OldQuestion.Status', 
         'UserRole': 'apps.accounts.models.User.Role',
+        'OTPPurpose': 'apps.accounts.models.OTPVerification.Purpose',
         'TeacherProfileStatus': 'apps.accounts.models.TeacherProfile.Status',
+        'SchoolType': 'apps.academics.models.School.SchoolType',
+        'ClassLevelType': 'apps.academics.models.ClassLevel.LevelType',
+        'NoteStatus': 'apps.notes.models.Note.Status',
+        'OldQuestionStatus': 'apps.notes.models.OldQuestion.Status',
+        'ApprovalStatusEnum': ['approved', 'rejected'],
+        'NoteStatusUpdateEnum': ['draft', 'pending', 'published'],
     },
     "SWAGGER_UI_TEMPLATE": "swagger-ui.html",
     

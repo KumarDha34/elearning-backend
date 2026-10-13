@@ -678,6 +678,7 @@ class UserSerializer(serializers.ModelSerializer):
             'has_password', 'is_verified_teacher'
         )
         read_only_fields = fields
+    @extend_schema_field(serializers.CharField())
     def get_phone_number(self, obj):                    
         """Return masked phone: 9812347001 → ****7001"""
         if not obj.phone_number:

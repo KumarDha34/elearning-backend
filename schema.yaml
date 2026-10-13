@@ -1,0 +1,3685 @@
+openapi: 3.0.3
+info:
+  title: E-Learning Platform for Nepal — API
+  version: 1.0.0
+  description: Complete Module API
+paths:
+  /api/v1/academics/chapters/:
+    get:
+      operationId: chapters_list
+      description: Get a list of all chapter with filters
+      summary: List Chapters
+      parameters:
+      - in: query
+        name: is_active
+        schema:
+          type: boolean
+        description: Filter by active status
+      - in: query
+        name: search
+        schema:
+          type: string
+        description: Search by name
+      - in: query
+        name: subject
+        schema:
+          type: integer
+        description: Filter by subject ID
+      tags:
+      - academics
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Chapter'
+          description: ''
+    post:
+      operationId: create_chapters
+      description: Create a new Chapter. Only Admins can create
+      summary: Create Chapters
+      tags:
+      - academics
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChapterRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ChapterRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ChapterRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Chapter'
+          description: ''
+        '400':
+          description: Validation error
+        '403':
+          description: Permission denied - Admin only
+  /api/v1/academics/chapters/{id}/:
+    get:
+      operationId: chapters_retrieve
+      description: Get detailed information about a specific chapter
+      summary: Get Chapter Details
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - academics
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Chapter'
+          description: ''
+        '404':
+          description: Chapter not found
+    patch:
+      operationId: chapters_update
+      description: Update specific fields of a chapter. Only admins can update chapters.
+      summary: Partial Update Chapter (Admin only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - academics
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedChapterRequest'
+            examples:
+              UpdateChapterExample:
+                value:
+                  name: Updated Chapter Name
+                  description: Updated description
+                  is_active: false
+                summary: Update Chapter Example
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedChapterRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedChapterRequest'
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Chapter'
+              examples:
+                UpdateChapterExample:
+                  value:
+                    name: Updated Chapter Name
+                    description: Updated description
+                    is_active: false
+                  summary: Update Chapter Example
+          description: ''
+        '400':
+          description: Validation error
+        '403':
+          description: Permission denied - Admin only
+        '404':
+          description: Chapter not found
+    delete:
+      operationId: chapters_delete
+      description: Delete a chapter. Only admins can delete chapters.
+      summary: Delete Chapter (Admin only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - academics
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+        '403':
+          description: Permission denied - Admin only
+        '404':
+          description: Chapter not found
+  /api/v1/academics/class-levels/:
+    get:
+      operationId: class_levels_list
+      description: Get a list of all class levels with optional filters
+      summary: List Class Levels
+      parameters:
+      - in: query
+        name: level_type
+        schema:
+          type: string
+        description: Filter by level type (SEE, +2, bachelor)
+      - in: query
+        name: search
+        schema:
+          type: string
+        description: Search by name
+      tags:
+      - academics
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ClassLevel'
+          description: ''
+    post:
+      operationId: class_levels_create
+      description: Create a new class level. Only admins can create class levels.
+      summary: Create Class Level (Admin only)
+      tags:
+      - academics
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClassLevelRequest'
+            examples:
+              CreateClassLevelExample:
+                value:
+                  name: Grade 12
+                  level_type: '+2'
+                  display_order: 12
+                summary: Create Class Level Example
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ClassLevelRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ClassLevelRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassLevel'
+              examples:
+                CreateClassLevelExample:
+                  value:
+                    name: Grade 12
+                    level_type: '+2'
+                    display_order: 12
+                  summary: Create Class Level Example
+          description: ''
+        '400':
+          description: Validation error
+        '403':
+          description: Permission denied - Admin only
+  /api/v1/academics/class-levels/{id}/:
+    get:
+      operationId: class_levels_retrieve
+      description: Get detailed information about a specific class level
+      summary: Get Class Level Details
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - academics
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassLevel'
+          description: ''
+        '404':
+          description: Class Level not found
+    patch:
+      operationId: class_levels_update
+      description: Update specific fields of a class level. Only admins can update
+        class levels.
+      summary: Partial Update Class Level (Admin only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - academics
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedClassLevelRequest'
+            examples:
+              UpdateClassLevelExample:
+                value:
+                  name: Updated Class Name
+                  display_order: 13
+                summary: Update Class Level Example
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedClassLevelRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedClassLevelRequest'
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassLevel'
+              examples:
+                UpdateClassLevelExample:
+                  value:
+                    name: Updated Class Name
+                    display_order: 13
+                  summary: Update Class Level Example
+          description: ''
+        '400':
+          description: Validation error
+        '403':
+          description: Permission denied - Admin only
+        '404':
+          description: Class Level not found
+  /api/v1/academics/faculties/:
+    get:
+      operationId: faculties_list
+      description: Get a list of all faculties
+      summary: List Faculties
+      parameters:
+      - in: query
+        name: search
+        schema:
+          type: string
+        description: Search by name
+      tags:
+      - academics
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Faculty'
+          description: ''
+    post:
+      operationId: faculties_create
+      description: Create a new faculty. Only admins can create faculties.
+      summary: Create Faculty (Admin only)
+      tags:
+      - academics
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FacultyRequest'
+            examples:
+              CreateFacultyExample:
+                value:
+                  name: Science
+                  description: Faculty of Science and Technology
+                summary: Create Faculty Example
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FacultyRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FacultyRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Faculty'
+              examples:
+                CreateFacultyExample:
+                  value:
+                    name: Science
+                    description: Faculty of Science and Technology
+                  summary: Create Faculty Example
+          description: ''
+        '400':
+          description: Validation error
+        '403':
+          description: Permission denied - Admin only
+  /api/v1/academics/faculties/{id}/:
+    get:
+      operationId: faculties_retrieve
+      description: Get detailed information about a specific faculty
+      summary: Get Faculty Details
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - academics
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Faculty'
+          description: ''
+        '404':
+          description: Faculty not found
+    patch:
+      operationId: faculties_update
+      description: Update specific fields of a faculty. Only admins can update faculties.
+      summary: Partial Update Faculty (Admin only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - academics
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedFacultyRequest'
+            examples:
+              UpdateFacultyExample:
+                value:
+                  name: Updated Faculty Name
+                  description: Updated description
+                summary: Update Faculty Example
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedFacultyRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedFacultyRequest'
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Faculty'
+              examples:
+                UpdateFacultyExample:
+                  value:
+                    name: Updated Faculty Name
+                    description: Updated description
+                  summary: Update Faculty Example
+          description: ''
+        '400':
+          description: Validation error
+        '403':
+          description: Permission denied - Admin only
+        '404':
+          description: Faculty not found
+  /api/v1/academics/schools/:
+    get:
+      operationId: schools_list
+      description: Get a paginated list of schools with optional filters
+      summary: List Schools
+      parameters:
+      - in: query
+        name: is_verified
+        schema:
+          type: boolean
+        description: Filter by verification status
+      - in: query
+        name: school_type
+        schema:
+          type: string
+        description: Filter by school type (School, College, University)
+      - in: query
+        name: search
+        schema:
+          type: string
+        description: Search by name
+      tags:
+      - academics
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/School'
+          description: ''
+        '400':
+          description: Invalid filter parameters
+    post:
+      operationId: schools_create
+      description: Create a new school. Only admins can create schools. New schools
+        are automatically verified.
+      summary: Create School (Admin only)
+      tags:
+      - academics
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SchoolRequest'
+            examples:
+              CreateSchoolExample:
+                value:
+                  name: Kathmandu Valley School
+                  address: Kathmandu, Nepal
+                  school_type: School
+                summary: Create School Example
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SchoolRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SchoolRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/School'
+              examples:
+                CreateSchoolExample:
+                  value:
+                    name: Kathmandu Valley School
+                    address: Kathmandu, Nepal
+                    school_type: School
+                  summary: Create School Example
+          description: ''
+        '400':
+          description: Validation error
+        '403':
+          description: Permission denied - Admin only
+  /api/v1/academics/schools/{id}/:
+    get:
+      operationId: schools_retrieve
+      description: Get detailed information about a specific school
+      summary: Get School Details
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - academics
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/School'
+          description: ''
+        '404':
+          description: School not found
+    patch:
+      operationId: schools_update
+      description: Update specific fields of a school. Only admins or the school creator
+        can update.
+      summary: Partial Update School
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - academics
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedSchoolRequest'
+            examples:
+              UpdateSchoolExample:
+                value:
+                  name: Updated School Name
+                  address: New Address
+                  school_type: College
+                  is_verified: false
+                summary: Update School Example
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedSchoolRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedSchoolRequest'
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/School'
+              examples:
+                UpdateSchoolExample:
+                  value:
+                    name: Updated School Name
+                    address: New Address
+                    school_type: College
+                    is_verified: false
+                  summary: Update School Example
+          description: ''
+        '400':
+          description: Validation error
+        '403':
+          description: Permission denied
+        '404':
+          description: School not found
+  /api/v1/academics/schools/{id}/verify/:
+    post:
+      operationId: schools_verify
+      description: Mark a school as verified. Only admins can perform this action.
+      summary: Verify School (Admin only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - academics
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/School'
+          description: ''
+        '403':
+          description: Permission denied - Admin only
+        '404':
+          description: School not found
+  /api/v1/academics/schools/my_schools/:
+    get:
+      operationId: schools_my_list
+      description: Get a list of schools created by the current authenticated user
+      summary: Get My Created Schools
+      tags:
+      - academics
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/School'
+          description: ''
+        '401':
+          description: Authentication required
+  /api/v1/academics/subjects/:
+    get:
+      operationId: subjects_list
+      description: Get a list of all subjects with optional filters
+      summary: List Subjects
+      parameters:
+      - in: query
+        name: class_level
+        schema:
+          type: integer
+        description: Filter by class level ID
+      - in: query
+        name: faculty
+        schema:
+          type: integer
+        description: Filter by faculty ID
+      - in: query
+        name: is_active
+        schema:
+          type: boolean
+        description: Filter by active status
+      - in: query
+        name: search
+        schema:
+          type: string
+        description: Search by name
+      tags:
+      - academics
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Subject'
+          description: ''
+    post:
+      operationId: subjects_create
+      description: Create a new subject. Only admins can create subjects.
+      summary: Create Subject (Admin only)
+      tags:
+      - academics
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubjectRequest'
+            examples:
+              CreateSubjectExample:
+                value:
+                  name: Mathematics
+                  faculty: 1
+                  class_level: 1
+                summary: Create Subject Example
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SubjectRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SubjectRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subject'
+              examples:
+                CreateSubjectExample:
+                  value:
+                    name: Mathematics
+                    faculty: 1
+                    class_level: 1
+                  summary: Create Subject Example
+          description: ''
+        '400':
+          description: Validation error
+        '403':
+          description: Permission denied - Admin only
+  /api/v1/academics/subjects/{id}/:
+    get:
+      operationId: subjects_retrieve
+      description: Get detailed information about a specific subject
+      summary: Get Subject Details
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - academics
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subject'
+          description: ''
+        '404':
+          description: Subject not found
+    patch:
+      operationId: subjects_update
+      description: Update specific fields of a subject. Only admins can update subjects.
+      summary: Partial Update Subject (Admin only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - academics
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedSubjectRequest'
+            examples:
+              UpdateSubjectExample:
+                value:
+                  name: Updated Mathematics
+                  is_active: false
+                summary: Update Subject Example
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedSubjectRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedSubjectRequest'
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subject'
+              examples:
+                UpdateSubjectExample:
+                  value:
+                    name: Updated Mathematics
+                    is_active: false
+                  summary: Update Subject Example
+          description: ''
+        '400':
+          description: Validation error
+        '403':
+          description: Permission denied - Admin only
+        '404':
+          description: Subject not found
+  /api/v1/academics/teacher-schools/:
+    get:
+      operationId: teacher_schools_list
+      description: Get a list of teacher-school affiliations. Teachers see only their
+        own affiliations.
+      summary: List Teacher-School Affiliations
+      parameters:
+      - in: query
+        name: school
+        schema:
+          type: integer
+        description: Filter by school ID
+      - in: query
+        name: teacher
+        schema:
+          type: integer
+        description: Filter by teacher ID (Admin only)
+      tags:
+      - academics
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TeacherSchool'
+          description: ''
+        '401':
+          description: Authentication required
+        '403':
+          description: Permission denied
+  /api/v1/academics/teacher-schools/my_schools/:
+    get:
+      operationId: teacher_schools_my
+      description: Get all school affiliations for the current authenticated teacher
+      summary: Get My Schools
+      tags:
+      - academics
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TeacherSchool'
+          description: ''
+        '401':
+          description: Authentication required
+        '403':
+          description: Permission denied - Teacher only
+        '404':
+          description: Teacher profile not found
+  /api/v1/auth/admin/teachers/{phone_number}/verify/:
+    patch:
+      operationId: auth_admin_teachers_verify_partial_update
+      description: |-
+        PATCH /api/v1/auth/admin/teachers/{phone_number}/verify/
+        Admin can verify or unverify a teacher
+      parameters:
+      - in: path
+        name: phone_number
+        schema:
+          type: string
+        description: Phone number of the teacher (10 digits)
+        required: true
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedAdminVerifyTeacherRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedAdminVerifyTeacherRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedAdminVerifyTeacherRequest'
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/auth/admin/users/:
+    get:
+      operationId: auth_admin_users_list
+      description: List all users (Admin only)
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedUserList'
+          description: ''
+  /api/v1/auth/admin/users/{phone_number}/:
+    patch:
+      operationId: auth_admin_users_partial_update
+      description: |-
+        PATCH /api/v1/auth/admin/users/{phone_number}/
+        Activate or Deactivate a user by phone number (Admin only)
+        Can also update role to student/instructor/editor
+      parameters:
+      - in: path
+        name: phone_number
+        schema:
+          type: string
+        description: Phone number of the user (10 digits)
+        required: true
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedAdminUserUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedAdminUserUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedAdminUserUpdateRequest'
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/auth/admin/users/create/:
+    post:
+      operationId: auth_admin_users_create_create
+      description: Create editor user (Admin only)
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUserRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AdminUserRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AdminUserRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUser'
+          description: ''
+  /api/v1/auth/login/:
+    post:
+      operationId: auth_login_create
+      description: Login with phone number and password
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomTokenObtainPairRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomTokenObtainPairRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomTokenObtainPairRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/logout/:
+    post:
+      operationId: auth_logout_create
+      description: POST /api/v1/auth/logout/ - Logout and blacklist refresh token
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Logout'
+          description: ''
+  /api/v1/auth/me/:
+    get:
+      operationId: auth_me_retrieve
+      description: Get current authenticated user's profile with related data
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+  /api/v1/auth/otp/send/:
+    post:
+      operationId: auth_otp_send_create
+      description: Send OTP to a phone number
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OTPSendRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OTPSendRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OTPSendRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OTPSend'
+          description: ''
+  /api/v1/auth/otp/verify/:
+    post:
+      operationId: auth_otp_verify_create
+      description: UNIFIED OTP Verification — handles SIGNUP, RESUME, and PASSWORD_RESET.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OTPVerifyRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OTPVerifyRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OTPVerifyRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OTPVerify'
+          description: ''
+  /api/v1/auth/password/reset/:
+    post:
+      operationId: auth_password_reset_create
+      description: |-
+        POST /api/v1/auth/password/reset/
+        Request password reset (forgot password) or change password (authenticated)
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequestRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasswordResetRequest'
+          description: ''
+  /api/v1/auth/password/reset/confirm/:
+    post:
+      operationId: auth_password_reset_confirm_create
+      description: |-
+        POST /api/v1/auth/password/reset/confirm/ - Reset password
+
+        Option 1 - Using reset_token (Recommended):
+            {"reset_token": "jwt_token", "new_password": "...", "new_password_confirm": "..."}
+
+        Option 2 - Authenticated user (NO phone needed!):
+            Header: Authorization: Bearer <access_token>
+            Body: {"new_password": "...", "new_password_confirm": "..."}
+
+        Option 3 - Using phone_number (Legacy support):
+            {"phone_number": "9765299096", "new_password": "...", "new_password_confirm": "..."}
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetConfirmRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PasswordResetConfirmRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PasswordResetConfirmRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasswordResetConfirm'
+          description: ''
+  /api/v1/auth/profile/student/complete/:
+    post:
+      operationId: auth_profile_student_complete_create
+      description: 'Step 2: Complete Student Profile'
+      tags:
+      - auth
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                full_name:
+                  type: string
+                school:
+                  type: integer
+                  description: School ID
+                school_name:
+                  type: string
+                  description: School name (use this if adding new school)
+                school_type:
+                  type: string
+                  enum:
+                  - school
+                  - college
+                  - university
+                class_level:
+                  type: integer
+                  description: Class Level ID
+                faculty:
+                  type: integer
+                  description: Faculty ID
+                address:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                profile_image:
+                  type: string
+                  format: binary
+                password:
+                  type: string
+                  format: password
+                password_confirm:
+                  type: string
+                  format: password
+              required:
+              - address
+              - email
+              - password
+              - password_confirm
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+  /api/v1/auth/profile/student/update/:
+    patch:
+      operationId: auth_profile_student_update_partial_update
+      description: |-
+        PATCH /profile/student/update/
+        Update Student Profile
+      tags:
+      - auth
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                school:
+                  type: integer
+                  description: 'School ID '
+                class_level:
+                  type: integer
+                  description: Class Level ID
+                faculty:
+                  type: integer
+                  description: Faculty ID
+                address:
+                  type: string
+                profile_image:
+                  type: string
+                  format: binary
+                alternative_email:
+                  type: string
+                  format: email
+                alternative_phone:
+                  type: string
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentProfile'
+          description: ''
+  /api/v1/auth/profile/teacher/complete/:
+    post:
+      operationId: auth_profile_teacher_complete_create
+      description: 'Step 2: Complete Teacher Profile'
+      tags:
+      - auth
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                full_name:
+                  type: string
+                faculty:
+                  type: integer
+                  description: 'Faculty ID '
+                subjects:
+                  type: array
+                  items:
+                    type: integer
+                  description: List of subject IDs
+                schools:
+                  type: array
+                  items:
+                    type: integer
+                  description: List of school IDs
+                email:
+                  type: string
+                  format: email
+                bio:
+                  type: string
+                  description: Short biography
+                profile_image:
+                  type: string
+                  format: binary
+                verification_document:
+                  type: string
+                  format: binary
+                password:
+                  type: string
+                  format: password
+                password_confirm:
+                  type: string
+                  format: password
+              required:
+              - faculty
+              - subjects
+              - schools
+              - email
+              - verification_document
+              - password
+              - password_confirm
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+  /api/v1/auth/profile/teacher/update/:
+    patch:
+      operationId: auth_profile_teacher_update_partial_update
+      description: |-
+        PATCH /profile/teacher/update/
+        Update Teacher Profile
+      tags:
+      - auth
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                faculty:
+                  type: integer
+                  description: 'Faculty ID '
+                subjects:
+                  type: array
+                  items:
+                    type: integer
+                  description: 'List of subject IDs '
+                schools:
+                  type: array
+                  items:
+                    type: integer
+                  description: 'List of school IDs '
+                bio:
+                  type: string
+                profile_image:
+                  type: string
+                  format: binary
+                verification_document:
+                  type: string
+                  format: binary
+                alternative_email:
+                  type: string
+                  format: email
+                alternative_phone:
+                  type: string
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherProfile'
+          description: ''
+  /api/v1/auth/signup/:
+    post:
+      operationId: auth_signup_create
+      description: |-
+        Step 1: Capture phone + role, send OTP.
+        - No User row is created here.
+        - No session tokens are issued here.
+        - The User is created only after OTP verification.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignupRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SignupRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SignupRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Signup'
+          description: ''
+  /api/v1/auth/token/refresh/:
+    post:
+      operationId: auth_token_refresh_create
+      description: Refresh JWT access token
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access:
+                    type: string
+                  refresh:
+                    type: string
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                description: Invalid refresh token
+          description: ''
+  /api/v1/notes/:
+    get:
+      operationId: notes_list
+      description: Display notes on the website. Everyone can view published notes.
+      summary: List Notes (Display)
+      parameters:
+      - in: query
+        name: chapter
+        schema:
+          type: integer
+        description: Filter by chapter ID
+      - in: query
+        name: search
+        schema:
+          type: string
+        description: Search by title
+      - in: query
+        name: subject
+        schema:
+          type: integer
+        description: Filter by subject ID
+      tags:
+      - notes
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NoteList'
+          description: ''
+  /api/v1/notes/{id}/:
+    get:
+      operationId: notes_retrieve
+      description: Display full note on the website. Everyone can view published notes.
+      summary: Get Note Details (Display)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - notes
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NoteDetail'
+          description: ''
+        '403':
+          description: Permission denied
+        '404':
+          description: Note not found
+  /api/v1/notes/{id}/approve/:
+    post:
+      operationId: notes_approve
+      description: Approve or reject a note (Editor/Admin only)
+      summary: Approve/Reject Note
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - notes
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NoteApprovalRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/NoteApprovalRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/NoteApprovalRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NoteDetail'
+          description: ''
+        '400':
+          description: Validation error
+        '403':
+          description: Permission denied
+        '404':
+          description: Note not found
+  /api/v1/notes/{id}/delete/:
+    delete:
+      operationId: notes_delete
+      description: Delete a note. Admin OR verified teacher owner can delete.
+      summary: Delete Note
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - notes
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '204':
+          description: Note deleted successfully
+        '403':
+          description: Permission denied
+        '404':
+          description: Note not found
+  /api/v1/notes/{id}/reject-info/:
+    get:
+      operationId: notes_reject_info
+      description: Get rejection reason and feedback for a rejected note
+      summary: Get Rejection Information
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - notes
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          description: Rejection information
+        '403':
+          description: Permission denied
+        '404':
+          description: Note not found
+  /api/v1/notes/{id}/resubmit/:
+    post:
+      operationId: notes_resubmit
+      description: Resubmit a rejected note for review (Verified Teachers or Admin)
+      summary: Resubmit Rejected Note
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - notes
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NoteResubmitRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/NoteResubmitRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/NoteResubmitRequest'
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NoteDetail'
+          description: ''
+        '400':
+          description: Validation error
+        '403':
+          description: Permission denied
+        '404':
+          description: Note not found
+  /api/v1/notes/{id}/status/:
+    patch:
+      operationId: notes_status_update
+      description: Update note status. Admin or verified teacher owner can update.
+      summary: Update Note Status
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - notes
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedNoteStatusUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedNoteStatusUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedNoteStatusUpdateRequest'
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NoteDetail'
+          description: ''
+        '400':
+          description: Validation error
+        '403':
+          description: Permission denied
+        '404':
+          description: Note not found
+  /api/v1/notes/{id}/update/:
+    patch:
+      operationId: notes_update
+      description: Update a note. Admin or verified teacher who owns the note can
+        update.
+      summary: Update Note (Admin or Verified Teacher Owner)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - notes
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedNoteUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedNoteUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedNoteUpdateRequest'
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NoteDetail'
+          description: ''
+        '400':
+          description: Validation error
+        '403':
+          description: Permission denied
+        '404':
+          description: Note not found
+  /api/v1/notes/create/:
+    post:
+      operationId: notes_create
+      description: Create a new note. Only verified teachers or Admin can create notes.
+      summary: Create Note (Verified Teachers or Admin Only)
+      tags:
+      - notes
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NoteCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/NoteCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/NoteCreateRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NoteDetail'
+          description: ''
+        '400':
+          description: Validation error
+        '403':
+          description: Permission denied
+  /api/v1/notes/old-questions/:
+    get:
+      operationId: old_question_list
+      description: "\n        List all published old question papers.\n        \n\
+        \        **Filters:**\n        - subject: Filter by subject ID\n        -\
+        \ class_level: Filter by class level ID\n        - exam_year: Filter by exam\
+        \ year\n        - search: Search by title\n        \n        **Note:** Only\
+        \ 'published' questions are visible to the public.\n        "
+      summary: List Old Questions
+      parameters:
+      - in: query
+        name: class_level
+        schema:
+          type: integer
+        description: Filter by class level ID
+      - in: query
+        name: exam_year
+        schema:
+          type: integer
+        description: Filter by exam year (e.g., 2080)
+      - in: query
+        name: search
+        schema:
+          type: string
+        description: Search by title (case-insensitive)
+      - in: query
+        name: subject
+        schema:
+          type: integer
+        description: Filter by subject ID
+      tags:
+      - notes
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OldQuestionList'
+          description: ''
+  /api/v1/notes/old-questions/{id}/:
+    get:
+      operationId: old_question_detail
+      description: "\n        View full question paper content.\n        \n      \
+        \  **Access Rules:**\n        - Published questions: Anyone can view\n   \
+        \     - Pending/Rejected questions: Only the uploading teacher can view\n\
+        \        - Non-existent or restricted: Returns 404\n        "
+      summary: Get Old Question Details
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - notes
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OldQuestionDetail'
+          description: ''
+        '404':
+          description: Question not found or not available
+  /api/v1/notes/old-questions/{id}/approve/:
+    post:
+      operationId: old_question_approve
+      description: "\n        Admin can approve or reject pending questions.\n   \
+        \     \n        **Approve:**\n        - Status changes to 'published'\n  \
+        \      - Becomes visible to everyone\n        \n        **Reject:**\n    \
+        \    - Status changes to 'rejected'\n        - Requires rejection reason\n\
+        \        - Teacher can view the reason and resubmit\n        "
+      summary: Approve or Reject Old Question
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - notes
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OldQuestionApprovalRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OldQuestionApprovalRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OldQuestionApprovalRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          description: Status updated successfully
+        '400':
+          description: Validation error
+        '403':
+          description: Permission denied (Admin only)
+        '404':
+          description: Question not found
+  /api/v1/notes/old-questions/{id}/delete/:
+    delete:
+      operationId: old_question_delete
+      description: "\n        Delete a question paper.\n        \n        **Rules:**\n\
+        \        1. Only the teacher who created it can delete\n        2. Only 'pending'\
+        \ questions can be deleted\n        \n        **Cannot delete:**\n       \
+        \ - Published questions (already approved)\n        - Rejected questions (must\
+        \ resubmit if needed)\n        "
+      summary: Delete Old Question
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - notes
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '204':
+          description: Deleted successfully
+        '403':
+          description: Permission denied
+        '404':
+          description: Question not found
+  /api/v1/notes/old-questions/{id}/resubmit/:
+    post:
+      operationId: old_question_resubmit
+      description: "\n        Resubmit a rejected question for review.\n        \n\
+        \        **Rules:**\n        1. Only the teacher who created it or Admin can\
+        \ resubmit\n        2. Only 'rejected' questions can be resubmitted\n    \
+        \    3. Status changes to 'pending' for re-review\n        \n        **Use\
+        \ Case:**\n        - Teacher fixes issues mentioned in rejection reason\n\
+        \        - Resubmits for admin re-review\n        "
+      summary: Resubmit Rejected Question
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - notes
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OldQuestionResubmitRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OldQuestionResubmitRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OldQuestionResubmitRequest'
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OldQuestionDetail'
+          description: ''
+        '400':
+          description: Validation error
+        '403':
+          description: Permission denied
+        '404':
+          description: Question not found
+  /api/v1/notes/old-questions/{id}/update/:
+    patch:
+      operationId: old_question_update
+      description: "\n        Update a question paper.\n        \n        **Rules:**\n\
+        \        1. Only the teacher who created it can update\n        2. Only 'pending'\
+        \ questions can be updated\n        3. Partial updates allowed (send only\
+        \ fields to change)\n        \n        **Cannot update:**\n        - Published\
+        \ questions (already approved)\n        - Rejected questions (must resubmit)\n\
+        \        "
+      summary: Update Old Question
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - notes
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedOldQuestionUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedOldQuestionUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedOldQuestionUpdateRequest'
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OldQuestionDetail'
+          description: ''
+        '400':
+          description: Validation error
+        '403':
+          description: Permission denied
+        '404':
+          description: Question not found
+  /api/v1/notes/old-questions/create/:
+    post:
+      operationId: old_question_create
+      description: "\n        Upload a past question paper.\n        \n        **Requirements:**\n\
+        \        - Only verified teachers or Admin can upload\n        - Status automatically\
+        \ set to 'pending'\n        - CKEditor content required (min 10 characters)\n\
+        \        \n        **Workflow:**\n        1. Teacher uploads → status = 'pending'\n\
+        \        2. Admin reviews and approves/rejects\n        "
+      summary: Upload Old Question
+      tags:
+      - notes
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OldQuestionCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OldQuestionCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OldQuestionCreateRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OldQuestionDetail'
+          description: ''
+        '400':
+          description: Validation error
+        '403':
+          description: Permission denied
+  /api/v1/notes/old-questions/my-questions/:
+    get:
+      operationId: old_question_my
+      description: "\n        Get all old questions uploaded by the current teacher.\n\
+        \        \n        **Access:** Teachers only\n        \n        **Includes:**\
+        \ All statuses (pending, published, rejected)\n        **Order:** Latest first\
+        \ (by exam year and creation date)\n        "
+      summary: My Old Questions
+      tags:
+      - notes
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OldQuestionList'
+          description: ''
+        '403':
+          description: Permission denied (Teachers only)
+  /api/v1/notes/preview/:
+    post:
+      operationId: notes_preview
+      description: Preview note content before saving. Only verified teachers or Admin
+        can preview.
+      summary: Preview Note (Verified Teachers or Admin Only)
+      tags:
+      - notes
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotePreviewRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/NotePreviewRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/NotePreviewRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          description: Preview generated successfully
+        '400':
+          description: Validation error
+        '403':
+          description: Permission denied
+components:
+  schemas:
+    AdminUser:
+      type: object
+      properties:
+        full_name:
+          type: string
+          maxLength: 300
+        phone_number:
+          type: string
+          maxLength: 10
+        email:
+          type: string
+          format: email
+        role:
+          $ref: '#/components/schemas/AdminUserRoleEnum'
+      required:
+      - full_name
+      - phone_number
+      - role
+    AdminUserRequest:
+      type: object
+      properties:
+        full_name:
+          type: string
+          minLength: 1
+          maxLength: 300
+        phone_number:
+          type: string
+          minLength: 1
+          maxLength: 10
+        email:
+          type: string
+          format: email
+        role:
+          $ref: '#/components/schemas/AdminUserRoleEnum'
+        password:
+          type: string
+          writeOnly: true
+          minLength: 1
+        password_confirm:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - full_name
+      - password
+      - password_confirm
+      - phone_number
+      - role
+    AdminUserRoleEnum:
+      enum:
+      - editor
+      type: string
+      description: '* `editor` - Editor'
+    AdminUserUpdateRoleEnum:
+      enum:
+      - student
+      - instructor
+      - editor
+      type: string
+      description: |-
+        * `student` - Student
+        * `instructor` - Instructor
+        * `editor` - Editor
+    Chapter:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        subject:
+          type: integer
+        subject_name:
+          type: string
+          readOnly: true
+        name:
+          type: string
+          title: Chapter Name
+          maxLength: 200
+        description:
+          type: string
+          nullable: true
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - name
+      - subject
+      - subject_name
+      - updated_at
+    ChapterRequest:
+      type: object
+      properties:
+        subject:
+          type: integer
+        name:
+          type: string
+          minLength: 1
+          title: Chapter Name
+          maxLength: 200
+        description:
+          type: string
+          nullable: true
+        is_active:
+          type: boolean
+      required:
+      - name
+      - subject
+    ClassLevel:
+      type: object
+      description: Serializer for ClassLevel model
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        level_type_display:
+          type: string
+          readOnly: true
+        name:
+          type: string
+          title: Class Name
+          maxLength: 50
+        level_type:
+          $ref: '#/components/schemas/ClassLevelType'
+        display_order:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - level_type
+      - level_type_display
+      - name
+      - updated_at
+    ClassLevelRequest:
+      type: object
+      description: Serializer for ClassLevel model
+      properties:
+        name:
+          type: string
+          minLength: 1
+          title: Class Name
+          maxLength: 50
+        level_type:
+          $ref: '#/components/schemas/ClassLevelType'
+        display_order:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+      required:
+      - level_type
+      - name
+    ClassLevelType:
+      enum:
+      - SEE
+      - '+2'
+      - bachelor
+      type: string
+      description: |-
+        * `SEE` - SEE (Grade 10)
+        * `+2` - +2 (Grade 11-12)
+        * `bachelor` - Bachelor
+    CustomTokenObtainPairRequest:
+      type: object
+      properties:
+        phone_number:
+          type: string
+          writeOnly: true
+          minLength: 1
+        password:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - password
+      - phone_number
+    Faculty:
+      type: object
+      description: Serializer for Faculty model
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          title: Faculty Name
+          maxLength: 100
+        description:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - name
+      - updated_at
+    FacultyRequest:
+      type: object
+      description: Serializer for Faculty model
+      properties:
+        name:
+          type: string
+          minLength: 1
+          title: Faculty Name
+          maxLength: 100
+        description:
+          type: string
+          nullable: true
+      required:
+      - name
+    Logout:
+      type: object
+      properties:
+        refresh:
+          type: string
+      required:
+      - refresh
+    LogoutRequest:
+      type: object
+      properties:
+        refresh:
+          type: string
+          minLength: 1
+      required:
+      - refresh
+    NoteApprovalRequest:
+      type: object
+      description: Serializer for approving/rejecting notes
+      properties:
+        status:
+          allOf:
+          - $ref: '#/components/schemas/StatusDc7Enum'
+          description: |-
+            Status to set for the note
+
+            * `approved` - approved
+            * `rejected` - rejected
+        rejection_reason:
+          type: string
+          description: Reason for rejection (required if status is rejected)
+        rejection_feedback:
+          type: string
+          description: Detailed feedback for the teacher (optional)
+      required:
+      - status
+    NoteCreateRequest:
+      type: object
+      description: Serializer for creating notes
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        content:
+          type: string
+          minLength: 1
+          description: Rich text content from CKEditor
+        description:
+          type: string
+          title: Short Description
+        subject:
+          type: integer
+        class_level:
+          type: integer
+        chapter:
+          type: integer
+          nullable: true
+        featured_image:
+          type: string
+          format: binary
+          nullable: true
+          description: Featured image for the note (optional)
+      required:
+      - class_level
+      - content
+      - subject
+      - title
+    NoteDetail:
+      type: object
+      description: Serializer for note details (full content)
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          maxLength: 255
+        content:
+          type: string
+          description: Write your notes using the rich text editor
+        description:
+          type: string
+          title: Short Description
+        subject:
+          type: integer
+        subject_name:
+          type: string
+          readOnly: true
+        class_level:
+          type: integer
+        class_level_name:
+          type: string
+          readOnly: true
+        chapter:
+          type: integer
+          nullable: true
+        chapter_name:
+          type: string
+          readOnly: true
+          nullable: true
+        uploaded_by:
+          type: integer
+          readOnly: true
+        uploaded_by_name:
+          type: string
+          readOnly: true
+        status:
+          $ref: '#/components/schemas/NoteStatus'
+        status_display:
+          type: string
+          readOnly: true
+        featured_image:
+          type: string
+          format: uri
+          nullable: true
+        views:
+          type: integer
+          readOnly: true
+        rejection_reason:
+          type: string
+          description: Reason why the note was rejected
+        rejection_feedback:
+          type: string
+          description: Detailed feedback for the teacher
+        rejected_by:
+          type: integer
+          readOnly: true
+          nullable: true
+        rejected_by_name:
+          type: string
+          readOnly: true
+          nullable: true
+        rejected_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        approved_at:
+          type: string
+          format: date-time
+          nullable: true
+        published_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - chapter_name
+      - class_level
+      - class_level_name
+      - content
+      - created_at
+      - id
+      - rejected_by
+      - rejected_by_name
+      - status_display
+      - subject
+      - subject_name
+      - title
+      - updated_at
+      - uploaded_by
+      - uploaded_by_name
+      - views
+    NoteList:
+      type: object
+      description: Serializer for listing notes
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+          title: Short Description
+        content_preview:
+          type: string
+          readOnly: true
+        subject:
+          type: integer
+        subject_name:
+          type: string
+          readOnly: true
+        class_level:
+          type: integer
+        class_level_name:
+          type: string
+          readOnly: true
+        chapter:
+          type: integer
+          nullable: true
+        chapter_name:
+          type: string
+          readOnly: true
+          nullable: true
+        uploaded_by:
+          type: integer
+          readOnly: true
+        uploaded_by_name:
+          type: string
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/NoteStatus'
+          readOnly: true
+        status_display:
+          type: string
+          readOnly: true
+        featured_image:
+          type: string
+          format: uri
+          nullable: true
+        featured_image_url:
+          type: string
+          nullable: true
+          readOnly: true
+        views:
+          type: integer
+          readOnly: true
+        rejection_reason:
+          type: string
+          description: Reason why the note was rejected
+        rejection_reason_preview:
+          type: string
+          nullable: true
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        published_at:
+          type: string
+          format: date-time
+          nullable: true
+        rejected_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - chapter_name
+      - class_level
+      - class_level_name
+      - content_preview
+      - created_at
+      - featured_image_url
+      - id
+      - rejection_reason_preview
+      - status
+      - status_display
+      - subject
+      - subject_name
+      - title
+      - updated_at
+      - uploaded_by
+      - uploaded_by_name
+      - views
+    NotePreviewRequest:
+      type: object
+      description: Serializer for previewing note content
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        content:
+          type: string
+          minLength: 1
+        subject:
+          type: integer
+        class_level:
+          type: integer
+        chapter:
+          type: integer
+          nullable: true
+      required:
+      - class_level
+      - content
+      - subject
+      - title
+    NoteResubmitRequest:
+      type: object
+      description: Serializer for resubmitting a rejected note
+      properties:
+        resubmit_note:
+          type: string
+          description: Optional note to the editor when resubmitting
+    NoteStatus:
+      enum:
+      - draft
+      - pending
+      - published
+      - rejected
+      type: string
+      description: |-
+        * `draft` - Draft
+        * `pending` - Pending Review
+        * `published` - Published
+        * `rejected` - Rejected
+    NoteStatusUpdateStatusEnum:
+      enum:
+      - draft
+      - pending
+      - published
+      type: string
+      description: |-
+        * `draft` - draft
+        * `pending` - pending
+        * `published` - published
+    OTPSend:
+      type: object
+      properties:
+        phone_number:
+          type: string
+          maxLength: 10
+      required:
+      - phone_number
+    OTPSendRequest:
+      type: object
+      properties:
+        phone_number:
+          type: string
+          minLength: 1
+          maxLength: 10
+      required:
+      - phone_number
+    OTPVerify:
+      type: object
+      properties:
+        otp:
+          type: string
+          maxLength: 6
+          minLength: 6
+        purpose:
+          allOf:
+          - $ref: '#/components/schemas/PurposeEnum'
+          default: signup
+          description: |-
+            Purpose: 'signup', 'resume' or 'password_reset'
+
+            * `signup` - Signup Verification
+            * `resume` - Resume Signup
+            * `password_reset` - Password Reset
+        phone_number:
+          type: string
+          nullable: true
+          description: Phone number (REQUIRED only for unauthenticated users)
+          maxLength: 10
+      required:
+      - otp
+    OTPVerifyRequest:
+      type: object
+      properties:
+        otp:
+          type: string
+          minLength: 6
+          maxLength: 6
+        purpose:
+          allOf:
+          - $ref: '#/components/schemas/PurposeEnum'
+          default: signup
+          description: |-
+            Purpose: 'signup', 'resume' or 'password_reset'
+
+            * `signup` - Signup Verification
+            * `resume` - Resume Signup
+            * `password_reset` - Password Reset
+        phone_number:
+          type: string
+          nullable: true
+          description: Phone number (REQUIRED only for unauthenticated users)
+          maxLength: 10
+      required:
+      - otp
+    OldQuestionApprovalRequest:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/StatusDc7Enum'
+        rejection_reason:
+          type: string
+      required:
+      - status
+    OldQuestionCreateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        content:
+          type: string
+          minLength: 1
+          title: Question Content
+          description: Rich text content from CKEditor for question paper
+        subject:
+          type: integer
+        class_level:
+          type: integer
+        exam_year:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+      required:
+      - class_level
+      - content
+      - exam_year
+      - subject
+      - title
+    OldQuestionDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          maxLength: 255
+        content:
+          type: string
+          title: Question Content
+        subject_name:
+          type: string
+        class_level_name:
+          type: string
+        exam_year:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+        uploaded_by:
+          type: integer
+        uploaded_by_name:
+          type: string
+        status:
+          $ref: '#/components/schemas/OldQuestionStatus'
+        status_display:
+          type: string
+        rejection_reason:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - class_level_name
+      - content
+      - created_at
+      - exam_year
+      - id
+      - status_display
+      - subject_name
+      - title
+      - uploaded_by
+      - uploaded_by_name
+    OldQuestionList:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          maxLength: 255
+        content_preview:
+          type: string
+          readOnly: true
+        subject_name:
+          type: string
+        class_level_name:
+          type: string
+        exam_year:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+        uploaded_by_name:
+          type: string
+        status:
+          $ref: '#/components/schemas/OldQuestionStatus'
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - class_level_name
+      - content_preview
+      - created_at
+      - exam_year
+      - id
+      - subject_name
+      - title
+      - uploaded_by_name
+    OldQuestionResubmitRequest:
+      type: object
+      description: Serializer for resubmitting a rejected question
+      properties:
+        resubmit_note:
+          type: string
+          description: Optional note to the admin when resubmitting
+    OldQuestionStatus:
+      enum:
+      - pending
+      - published
+      - rejected
+      type: string
+      description: |-
+        * `pending` - Pending
+        * `published` - Published
+        * `rejected` - Rejected
+    PaginatedUserList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+    PasswordResetConfirm:
+      type: object
+      properties:
+        reset_token:
+          type: string
+          description: JWT reset token from OTP verification
+    PasswordResetConfirmRequest:
+      type: object
+      properties:
+        new_password:
+          type: string
+          writeOnly: true
+          minLength: 8
+        new_password_confirm:
+          type: string
+          writeOnly: true
+          minLength: 8
+        reset_token:
+          type: string
+          minLength: 1
+          description: JWT reset token from OTP verification
+      required:
+      - new_password
+      - new_password_confirm
+    PasswordResetRequest:
+      type: object
+      description: |-
+        Password Reset/Change Serializer - Dynamic based on auth status
+
+        For Unauthenticated (Forgot Password):
+            Body: {"phone_number": "9841234567"}
+            → Only phone_number allowed
+
+        For Authenticated (Change Password):
+            Header: Authorization: Bearer <access_token>
+            Body: {
+                "old_password": "CurrentPass@123#",
+                "new_password": "NewSecure@456#",
+                "confirm_password": "NewSecure@456#"
+            }
+            → Only password fields allowed
+      properties:
+        phone_number:
+          type: string
+          description: Registered phone number (Required for forgot password)
+          maxLength: 10
+      required:
+      - phone_number
+    PasswordResetRequestRequest:
+      type: object
+      description: |-
+        Password Reset/Change Serializer - Dynamic based on auth status
+
+        For Unauthenticated (Forgot Password):
+            Body: {"phone_number": "9841234567"}
+            → Only phone_number allowed
+
+        For Authenticated (Change Password):
+            Header: Authorization: Bearer <access_token>
+            Body: {
+                "old_password": "CurrentPass@123#",
+                "new_password": "NewSecure@456#",
+                "confirm_password": "NewSecure@456#"
+            }
+            → Only password fields allowed
+      properties:
+        phone_number:
+          type: string
+          minLength: 1
+          description: Registered phone number (Required for forgot password)
+          maxLength: 10
+        old_password:
+          type: string
+          writeOnly: true
+          minLength: 1
+          description: Not required for forgot password
+        new_password:
+          type: string
+          writeOnly: true
+          minLength: 1
+          description: Use /password/reset/confirm/ to set password
+        confirm_password:
+          type: string
+          writeOnly: true
+          minLength: 1
+          description: Use /password/reset/confirm/ to set password
+      required:
+      - phone_number
+    PatchedAdminUserUpdateRequest:
+      type: object
+      properties:
+        is_active:
+          type: boolean
+          description: Activate (true) or deactivate (false) the user
+        role:
+          allOf:
+          - $ref: '#/components/schemas/AdminUserUpdateRoleEnum'
+          description: |-
+            Change user role (student, instructor, or editor)
+
+            * `student` - Student
+            * `instructor` - Instructor
+            * `editor` - Editor
+    PatchedAdminVerifyTeacherRequest:
+      type: object
+      properties:
+        verified:
+          type: boolean
+          description: true = verified, false = not_verified
+    PatchedChapterRequest:
+      type: object
+      properties:
+        subject:
+          type: integer
+        name:
+          type: string
+          minLength: 1
+          title: Chapter Name
+          maxLength: 200
+        description:
+          type: string
+          nullable: true
+        is_active:
+          type: boolean
+    PatchedClassLevelRequest:
+      type: object
+      description: Serializer for ClassLevel model
+      properties:
+        name:
+          type: string
+          minLength: 1
+          title: Class Name
+          maxLength: 50
+        level_type:
+          $ref: '#/components/schemas/ClassLevelType'
+        display_order:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+    PatchedFacultyRequest:
+      type: object
+      description: Serializer for Faculty model
+      properties:
+        name:
+          type: string
+          minLength: 1
+          title: Faculty Name
+          maxLength: 100
+        description:
+          type: string
+          nullable: true
+    PatchedNoteStatusUpdateRequest:
+      type: object
+      description: Serializer for updating note status
+      properties:
+        status:
+          allOf:
+          - $ref: '#/components/schemas/NoteStatusUpdateStatusEnum'
+          description: |-
+            Update note status
+
+            * `draft` - draft
+            * `pending` - pending
+            * `published` - published
+    PatchedNoteUpdateRequest:
+      type: object
+      description: Serializer for updating notes
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        content:
+          type: string
+          minLength: 1
+          description: Write your notes using the rich text editor
+        description:
+          type: string
+          title: Short Description
+        subject:
+          type: integer
+        class_level:
+          type: integer
+        chapter:
+          type: integer
+          nullable: true
+        featured_image:
+          type: string
+          format: binary
+          nullable: true
+    PatchedOldQuestionUpdateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        content:
+          type: string
+          minLength: 1
+          title: Question Content
+        subject:
+          type: integer
+        class_level:
+          type: integer
+        exam_year:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+    PatchedSchoolRequest:
+      type: object
+      description: Serializer for School model
+      properties:
+        name:
+          type: string
+          minLength: 1
+          title: School Name
+          maxLength: 255
+        address:
+          type: string
+          minLength: 1
+          title: School Address (Kalanki,Kathmandu)
+          maxLength: 255
+        school_type:
+          $ref: '#/components/schemas/SchoolType'
+        is_verified:
+          type: boolean
+    PatchedSubjectRequest:
+      type: object
+      description: Serializer for Subject model
+      properties:
+        name:
+          type: string
+          minLength: 1
+          title: Subject Name
+          maxLength: 100
+        faculty:
+          type: integer
+        class_level:
+          type: integer
+        is_active:
+          type: boolean
+    PurposeEnum:
+      enum:
+      - signup
+      - resume
+      - password_reset
+      type: string
+      description: |-
+        * `signup` - Signup Verification
+        * `resume` - Resume Signup
+        * `password_reset` - Password Reset
+    School:
+      type: object
+      description: Serializer for School model
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          title: School Name
+          maxLength: 255
+        address:
+          type: string
+          title: School Address (Kalanki,Kathmandu)
+          maxLength: 255
+        school_type:
+          $ref: '#/components/schemas/SchoolType'
+        is_verified:
+          type: boolean
+        is_verified_display:
+          type: string
+          readOnly: true
+        created_by:
+          type: integer
+          readOnly: true
+          nullable: true
+        created_by_name:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - address
+      - created_at
+      - created_by
+      - created_by_name
+      - id
+      - is_verified_display
+      - name
+      - updated_at
+    SchoolRequest:
+      type: object
+      description: Serializer for School model
+      properties:
+        name:
+          type: string
+          minLength: 1
+          title: School Name
+          maxLength: 255
+        address:
+          type: string
+          minLength: 1
+          title: School Address (Kalanki,Kathmandu)
+          maxLength: 255
+        school_type:
+          $ref: '#/components/schemas/SchoolType'
+        is_verified:
+          type: boolean
+      required:
+      - address
+      - name
+    SchoolType:
+      enum:
+      - School
+      - College
+      - University
+      type: string
+      description: |-
+        * `School` - School
+        * `College` - College
+        * `University` - University
+    Signup:
+      type: object
+      description: 'Step 1: User registration with phone number'
+      properties:
+        phone_number:
+          type: string
+          maxLength: 10
+        role:
+          $ref: '#/components/schemas/SignupRoleEnum'
+      required:
+      - phone_number
+      - role
+    SignupRequest:
+      type: object
+      description: 'Step 1: User registration with phone number'
+      properties:
+        phone_number:
+          type: string
+          minLength: 1
+          maxLength: 10
+        role:
+          $ref: '#/components/schemas/SignupRoleEnum'
+      required:
+      - phone_number
+      - role
+    SignupRoleEnum:
+      enum:
+      - student
+      - instructor
+      type: string
+      description: |-
+        * `student` - Student
+        * `instructor` - Instructor
+    StatusDc7Enum:
+      enum:
+      - approved
+      - rejected
+      type: string
+      description: |-
+        * `approved` - approved
+        * `rejected` - rejected
+    StudentProfile:
+      type: object
+      description: Student Profile Serializer with nested related data
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        user:
+          type: integer
+        school:
+          type: integer
+          nullable: true
+          title: School/College
+        school_name:
+          type: string
+          readOnly: true
+        school_type:
+          $ref: '#/components/schemas/StudentProfileSchoolTypeEnum'
+        class_level:
+          type: integer
+          nullable: true
+        class_level_name:
+          type: string
+          readOnly: true
+        faculty:
+          type: integer
+          nullable: true
+        faculty_name:
+          type: string
+          readOnly: true
+        address:
+          type: string
+          description: e.g., Kalanki, Kathmandu
+          maxLength: 200
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        profile_image:
+          type: string
+          format: uri
+          nullable: true
+        points_balance:
+          type: integer
+          readOnly: true
+        alternative_emails: {}
+        alternative_phones: {}
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - address
+      - class_level_name
+      - created_at
+      - email
+      - faculty_name
+      - id
+      - points_balance
+      - school_name
+      - updated_at
+      - user
+    StudentProfileSchoolTypeEnum:
+      enum:
+      - school
+      - college
+      - university
+      type: string
+      description: |-
+        * `school` - School
+        * `college` - College
+        * `university` - University
+    Subject:
+      type: object
+      description: Serializer for Subject model
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          title: Subject Name
+          maxLength: 100
+        faculty:
+          type: integer
+        faculty_name:
+          type: string
+          readOnly: true
+        class_level:
+          type: integer
+        class_level_name:
+          type: string
+          readOnly: true
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - class_level
+      - class_level_name
+      - created_at
+      - faculty
+      - faculty_name
+      - id
+      - name
+      - updated_at
+    SubjectRequest:
+      type: object
+      description: Serializer for Subject model
+      properties:
+        name:
+          type: string
+          minLength: 1
+          title: Subject Name
+          maxLength: 100
+        faculty:
+          type: integer
+        class_level:
+          type: integer
+        is_active:
+          type: boolean
+      required:
+      - class_level
+      - faculty
+      - name
+    TeacherProfile:
+      type: object
+      description: Teacher Profile Serializer with nested related data
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        user:
+          type: integer
+        faculty:
+          type: integer
+          nullable: true
+        faculty_name:
+          type: string
+          readOnly: true
+        subjects:
+          type: array
+          items:
+            type: integer
+          description: Subjects taught by the teacher
+        subject_names:
+          type: array
+          items:
+            type: string
+          readOnly: true
+        school_names:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+          readOnly: true
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        profile_image:
+          type: string
+          format: uri
+          nullable: true
+        rating_avg:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,1}(?:\.\d{0,2})?$
+          readOnly: true
+          title: Average Rating
+        content_limit:
+          type: integer
+          readOnly: true
+        content_count:
+          type: integer
+          readOnly: true
+        bio:
+          type: string
+          title: Biography
+        verification_document:
+          type: string
+          format: uri
+          nullable: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/TeacherProfileStatus'
+          title: Verification Status
+        alternative_emails: {}
+        alternative_phones: {}
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - content_count
+      - content_limit
+      - created_at
+      - email
+      - faculty_name
+      - id
+      - rating_avg
+      - school_names
+      - subject_names
+      - updated_at
+      - user
+    TeacherProfileStatus:
+      enum:
+      - not_verified
+      - verified
+      type: string
+      description: |-
+        * `not_verified` - Not Verified
+        * `verified` - Verified
+    TeacherSchool:
+      type: object
+      description: Serializer for TeacherSchool model
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        teacher:
+          type: integer
+        teacher_name:
+          type: string
+          readOnly: true
+        school:
+          type: integer
+        school_name:
+          type: string
+          readOnly: true
+        joined_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - id
+      - joined_at
+      - school
+      - school_name
+      - teacher
+      - teacher_name
+    TokenRefreshRequest:
+      type: object
+      description: Serializer for token refresh request
+      properties:
+        refresh:
+          type: string
+          minLength: 1
+          description: Refresh token
+      required:
+      - refresh
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        full_name:
+          type: string
+          readOnly: true
+        phone_number:
+          type: string
+          readOnly: true
+        email:
+          type: string
+          format: email
+          readOnly: true
+          nullable: true
+        role:
+          allOf:
+          - $ref: '#/components/schemas/UserRole'
+          readOnly: true
+        phone_verified:
+          type: boolean
+          readOnly: true
+        profile_completed:
+          type: boolean
+          readOnly: true
+        signup_step:
+          type: integer
+          readOnly: true
+        is_active:
+          type: boolean
+          readOnly: true
+        is_staff:
+          type: boolean
+          readOnly: true
+        is_superuser:
+          type: boolean
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        profile:
+          type: object
+          additionalProperties: {}
+          nullable: true
+          readOnly: true
+        permissions:
+          type: object
+          additionalProperties: {}
+          readOnly: true
+        has_profile:
+          type: boolean
+          readOnly: true
+        can_login:
+          type: boolean
+          readOnly: true
+        has_password:
+          type: boolean
+          readOnly: true
+        is_verified_teacher:
+          type: boolean
+          readOnly: true
+      required:
+      - can_login
+      - created_at
+      - email
+      - full_name
+      - has_password
+      - has_profile
+      - id
+      - is_active
+      - is_staff
+      - is_superuser
+      - is_verified_teacher
+      - permissions
+      - phone_number
+      - phone_verified
+      - profile
+      - profile_completed
+      - role
+      - signup_step
+      - updated_at
+    UserRole:
+      enum:
+      - admin
+      - student
+      - instructor
+      - editor
+      type: string
+      description: |-
+        * `admin` - Admin
+        * `student` - Student
+        * `instructor` - Instructor
+        * `editor` - Editor
+  securitySchemes:
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
