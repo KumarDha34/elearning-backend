@@ -679,11 +679,12 @@ class UserSerializer(serializers.ModelSerializer):
         )
         read_only_fields = fields
     @extend_schema_field(serializers.CharField())
-    def get_phone_number(self, obj):                    
-        """Return masked phone: 9812347001 → ****7001"""
+    def get_phone_number(self, obj):
+        """Return masked phone: 9812347001 → 98******01"""
         if not obj.phone_number:
             return ""
-        return f"****{obj.phone_number[-4:]}"
+        phone = obj.phone_number
+        return f"{phone[:2]}******{phone[-2:]}"
     
     @extend_schema_field(serializers.BooleanField())
     def get_has_profile(self, obj):

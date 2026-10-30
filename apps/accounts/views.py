@@ -112,7 +112,7 @@ class SignupView(APIView):
                 pending_role=role,
             )
         except Exception as e:
-            logger.error(f"OTP send failed for {phone_number[:4]}***: {e}")
+            logger.error(f"OTP send failed for {phone_number[:2]}******{phone_number[-2:]}: {e}")
             return Response(
                 {'error': 'Could not send OTP. Please try again.'},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -124,7 +124,7 @@ class SignupView(APIView):
             'role':role,
             'next': 'verify_otp',
             'action': action,
-            'phone_number': f"****{phone_number[-4:]}",
+            'phone_number': f"{phone_number[:2]}******{phone_number[-2:]}",
             'expires_in': otp_service.expiry_minutes * 60,
         }, status=status.HTTP_201_CREATED)
 
@@ -181,7 +181,7 @@ class OTPSendView(APIView):
 
         return Response({
             'message': 'OTP sent successfully.',
-            'phone_number': f"****{phone_number[-4:]}",            
+            'phone_number': f"{phone_number[:2]}******{phone_number[-2:]}",            
             'expires_in': otp_service.expiry_minutes * 60,
             'phone_verified': user.phone_verified,
             'profile_completed': user.profile_completed
@@ -309,7 +309,7 @@ class OTPVerifyView(APIView):
                 'message': 'OTP verified. You can now reset your password.',
                 'verified': True,
                 'reset_token': reset_token,
-                'phone_number':f"****{phone_number[-4:]}",
+                'phone_number':f"{phone_number[:2]}******{phone_number[-2:]}",
             }, status=status.HTTP_200_OK)
 
         # Fallback (shouldn't be reachable with valid purposes)
@@ -396,7 +396,8 @@ class StudentProfileCompleteView(APIView):
             if existing_school:
                 
                 school = existing_school
-                logger.info(f"Student ****{user.phone_number[-4:]} used existing school: {school_name}")
+                logger.info(f"Student {user.phone_number[:2]}******{user.phone_number[-2:]} used existing school: {school_name}")
+
             else:
                 
                 same_name_school = School.objects.filter(
@@ -414,9 +415,7 @@ class StudentProfileCompleteView(APIView):
                     is_verified=False,  
                     created_by=user
                 )
-                logger.info(f"Student ****{user.phone_number[-4:]} created new school: {school_name} (unverified)")
-        
-       
+                logger.info(f"Student {user.phone_number[:2]}******{user.phone_number[-2:]} created new school: {school_name} (unverified)")        
         elif school:
             try:
                 school = School.objects.get(id=school.id)
@@ -848,7 +847,8 @@ class PasswordResetRequestView(APIView):
             user.set_password(new_password)
             user.save()
 
-            logger.info(f"User ****{user.phone_number[-4:]} changed password successfully")
+            logger.info(f"User {user.phone_number[:2]}******{user.phone_number[-2:]} changed password successfully")
+
 
             return Response({
                 "message": "Password changed successfully.",
@@ -869,11 +869,11 @@ class PasswordResetRequestView(APIView):
                 OTPVerification.Purpose.PASSWORD_RESET
             )
 
-            logger.info(f"Password reset OTP sent to ****{phone_number[-4:]}")
+            logger.info(f"Password reset OTP sent to {phone_number[:2]}******{phone_number[-2:]}")
 
             return Response({
                 "message": "Password reset OTP sent to your registered phone number.",
-                "phone_number": f"****{phone_number[-4:]}",
+                "phone_number": f"{phone_number[:2]}******{phone_number[-2:]}",
                 "action": "forgot_password"
             }, status=status.HTTP_200_OK)
 
@@ -927,7 +927,7 @@ class PasswordResetConfirmView(APIView):
                     }, status=status.HTTP_400_BAD_REQUEST)
 
                 user = User.objects.filter(phone_number=phone_number, is_active=True).first()
-                logger.info(f"User found via reset_token: ****{phone_number[-4:]}")
+                logger.info(f"User found via reset_token: {phone_number[:2]}******{phone_number[-2:]}")
 
             except jwt.ExpiredSignatureError:
                 return Response({
@@ -942,7 +942,7 @@ class PasswordResetConfirmView(APIView):
         elif request.user and request.user.is_authenticated:
             user = request.user
             phone_number = user.phone_number
-            logger.info(f"User found via authentication token: ****{phone_number[-4:]}")
+            logger.info(f"User found via authentication token: {phone_number[:2]}******{phone_number[-2:]}")
         # Option 3: Using phone_number (legacy)
         else:
             phone_number = serializer.validated_data.get('phone_number')
@@ -951,7 +951,8 @@ class PasswordResetConfirmView(APIView):
                     'error': 'phone_number, reset_token, or authentication required.'
                 }, status=status.HTTP_400_BAD_REQUEST)
             user = User.objects.filter(phone_number=phone_number, is_active=True).first()
-            logger.info(f"User found via phone_number: ****{phone_number[-4:]}")
+            logger.info(f"User found via phone_number: {phone_number[:2]}******{phone_number[-2:]}")
+
         if not user:
             return Response({
                 'error': 'User not found.'
@@ -961,7 +962,7 @@ class PasswordResetConfirmView(APIView):
         user.set_password(new_password)
         user.save(update_fields=['password'])
 
-        logger.info(f"Password reset successful for user: ****{phone_number[-4:]}")
+        logger.info(f"Password reset successful for user: {phone_number[:2]}******{phone_number[-2:]}")
         return Response({
             'message': 'Password reset successfully. Please login with your new password.'
         }, status=status.HTTP_200_OK)
@@ -1024,10 +1025,10 @@ class AdminUserUpdateView(APIView):
     def patch(self, request, phone_number):
         try:
             user = User.objects.get(phone_number=phone_number)
-            logger.info(f"User found by phone:  ****{phone_number[-4:]}")
+            logger.info(f"User found by phone: {phone_number[:2]}******{phone_number[-2:]}")
         except User.DoesNotExist:
             return Response({
-                    'error': f'User not found with phone number ending in {phone_number[-4:]}'
+                    'error': f'User not found: {phone_number[:2]}******{phone_number[-2:]}'
             }, status=status.HTTP_404_NOT_FOUND)
 
         serializer = AdminUserUpdateSerializer(data=request.data)
@@ -1058,7 +1059,9 @@ class AdminUserUpdateView(APIView):
 
         user.save(update_fields=allowed_fields)
 
-        logger.info(f"Admin {request.user.phone_number[-4:]} updated user {user.phone_number[-4:]}")
+        admin_mask = f"{request.user.phone_number[:2]}******{request.user.phone_number[-2:]}"
+        target_mask = f"{user.phone_number[:2]}******{user.phone_number[-2:]}"
+        logger.info(f"Admin {admin_mask} updated user {target_mask}")
 
         return Response({
             'message': 'User updated successfully.',
@@ -1100,7 +1103,7 @@ class AdminVerifyTeacherView(APIView):
             user = User.objects.get(phone_number=phone_number)
         except User.DoesNotExist:
             return Response({
-                'error': f'User not found with phone number ending in {phone_number[-4:]}'
+                'error': f'User not found: {phone_number[:2]}******{phone_number[-2:]}'
             }, status=status.HTTP_404_NOT_FOUND)
 
         if not user.is_instructor:
@@ -1118,7 +1121,7 @@ class AdminVerifyTeacherView(APIView):
         if verified and profile.status == TeacherProfile.Status.VERIFIED:
             return Response({
                 'success': False,
-                'error': f'Teacher {phone_number[-4:]} is already verified.',
+                'error': f'Teacher {phone_number[:2]}******{phone_number[-2:]} is already verified.',
                 'user': UserSerializer(user).data,
                 'current_status': profile.status
             }, status=status.HTTP_409_CONFLICT)
@@ -1126,7 +1129,7 @@ class AdminVerifyTeacherView(APIView):
         if not verified and profile.status == TeacherProfile.Status.NOT_VERIFIED:
             return Response({
                 'success': False,
-                'error': f'Teacher {phone_number[-4:]} is already not verified.',
+                'error': f'Teacher {phone_number[:2]}******{phone_number[-2:]} is already not verified.',
                 'user': UserSerializer(user).data,
                 'current_status': profile.status
             }, status=status.HTTP_409_CONFLICT)     
@@ -1134,14 +1137,16 @@ class AdminVerifyTeacherView(APIView):
         
         if verified:
             profile.status = TeacherProfile.Status.VERIFIED
-            message = f'Teacher ****{phone_number[-4:]} has been verified.'
+            message = f'Teacher {phone_number[:2]}******{phone_number[-2:]} has been verified.'
+
         else:
             profile.status = TeacherProfile.Status.NOT_VERIFIED
-            message = f'Teacher ****{phone_number[-4:]} has been unverified.'
+            message = f'Teacher {phone_number[:2]}******{phone_number[-2:]} has been unverified.'
 
         profile.save(update_fields=['status'])
 
-        logger.info(f"Admin ****{request.user.phone_number[-4:]} {message}")
+        logger.info(f"Admin {request.user.phone_number[:2]}******{request.user.phone_number[-2:]} {message}")
+
 
         return Response({
             'message': message,

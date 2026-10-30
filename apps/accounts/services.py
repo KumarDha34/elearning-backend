@@ -87,7 +87,7 @@ class OTPService:
             raise ValueError(f"Invalid code. {remaining} attempts remaining.")
 
         otp.mark_verified()
-        logger.info("OTP verified for %s*** (%s)", phone_number[:4], purpose)
+        logger.info(f"OTP verified for {phone_number[:2]}******{phone_number[-2:]} ({purpose})")
         return otp
 
     def _log_otp(self, phone_number: str, code: str, purpose: str) -> None:
@@ -96,15 +96,14 @@ class OTPService:
             print("\n" + "=" * 60)
             print("📱 OTP VERIFICATION")
             print("=" * 60)
-            print(f"Phone: {phone_number[:4]}***")
+            print(f"Phone: {phone_number[:2]}******{phone_number[-2:]}")
             print(f"Code: {code}")
             print(f"Purpose: {purpose}")
             print(f"Expires in: {self.expiry_minutes} minutes")
             print("=" * 60)
             print("Dev mode only. In production this is sent via SMS.\n")
 
-        logger.info("OTP generated for %s*** (%s)", phone_number[:4], purpose)
-
+        logger.info(f"OTP generated for {phone_number[:2]}******{phone_number[-2:]} ({purpose})")
 
 # Singleton instance
 otp_service = OTPService()
