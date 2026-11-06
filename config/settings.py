@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     "apps.accounts",
     "apps.academics",
     "apps.notes",
+    "apps.ads",
 ]
 
 AUTH_USER_MODEL = 'accounts.User'
