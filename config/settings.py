@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     "apps.accounts",
     "apps.academics",
     "apps.notes",
+    "apps.blog",
 ]
 
 AUTH_USER_MODEL = 'accounts.User'
@@ -71,7 +72,6 @@ CKEDITOR_5_CONFIGS = {
                 'link',
                 '|',
                 'imageUpload',
-                'mediaEmbed',
                 '|',
                 'sourceEditing',
                 '|',
@@ -217,6 +217,14 @@ CELERY_TIMEZONE = "Asia/Kathmandu"
 CELERY_TASK_ALWAYS_EAGER = os.environ.get("CELERY_TASK_ALWAYS_EAGER", "False") == "True"
 CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
 
+CELERY_BEAT_SCHEDULE = {
+    'sync-blog-like-counts': {
+        'task': 'apps.blog.tasks.sync_like_counts',
+        'schedule': 300.0,   # every 5 minutes
+    },
+}
+
+
 # ---------------------------------------------------------------------------
 # Django REST Framework
 # ---------------------------------------------------------------------------
@@ -266,8 +274,7 @@ SPECTACULAR_SETTINGS = {
         'ClassLevelType': 'apps.academics.models.ClassLevel.LevelType',
         'NoteStatus': 'apps.notes.models.Note.Status',
         'OldQuestionStatus': 'apps.notes.models.OldQuestion.Status',
-        'ApprovalStatusEnum': ['approved', 'rejected'],
-        'NoteStatusUpdateEnum': ['draft', 'pending', 'published'],
+
     },
     "SWAGGER_UI_TEMPLATE": "swagger-ui.html",
     

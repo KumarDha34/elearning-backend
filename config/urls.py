@@ -25,6 +25,7 @@ urlpatterns = [
     path('api/v1/auth/', include('apps.accounts.urls')),
     path('api/v1/academics/', include('apps.academics.urls')),
     path('api/v1/notes/', include('apps.notes.urls')),
+    path('api/v1/blog/', include('apps.blog.urls')),
 ]+ static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 

@@ -43,6 +43,8 @@ class TeacherProfileSerializer(serializers.ModelSerializer):
     faculty_name = serializers.CharField(source='faculty.name', read_only=True)
     subject_names = serializers.SerializerMethodField()
     school_names = serializers.SerializerMethodField()
+    followers_count = serializers.SerializerMethodField()      # ← ADD
+    is_followed = serializers.SerializerMethodField()
     
     class Meta:
         model = TeacherProfile
@@ -56,6 +58,7 @@ class TeacherProfileSerializer(serializers.ModelSerializer):
             'rating_avg', 'content_limit', 'content_count', 'bio',
             'verification_document', 'status',
             'alternative_emails', 'alternative_phones',
+            'followers_count', 'is_followed',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['rating_avg', 'content_limit', 'content_count', 'created_at', 'updated_at']
@@ -83,6 +86,18 @@ class TeacherProfileSerializer(serializers.ModelSerializer):
             for ts in obj.teacher_schools.all()
         ]
 
+    @extend_schema_field(serializers.IntegerField())
+    def get_followers_count(self, obj):
+        from apps.blog.models import TeacherFollow
+        return TeacherFollow.objects.filter(teacher=obj.user).count()
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_is_followed(self, obj):
+        from apps.blog.models import TeacherFollow
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            return False
+        return TeacherFollow.objects.filter(student=request.user, teacher=obj.user).exists()
 
 # ============================================================================
 # SIGNUP SERIALIZER
@@ -699,7 +714,8 @@ class UserSerializer(serializers.ModelSerializer):
         if obj.is_student and hasattr(obj, 'student_profile'):
             return StudentProfileSerializer(obj.student_profile).data
         elif obj.is_instructor and hasattr(obj, 'teacher_profile'):
-            return TeacherProfileSerializer(obj.teacher_profile).data
+            return TeacherProfileSerializer(
+                obj.teacher_profile,context={'request': self.context.get('request')},) .data
         return None
     
     @extend_schema_field(serializers.DictField())
