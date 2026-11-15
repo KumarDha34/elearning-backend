@@ -265,3 +265,39 @@ class OldQuestionRejectInfoView(APIView):
         if question.status != 'rejected':
             return Response({'message': 'Not rejected.', 'status': question.status})
         return Response({'id': question.id, 'title': question.title, 'status': question.status, 'rejection_reason': question.rejection_reason, 'can_resubmit': True, 'question': OldQuestionDetailSerializer(question).data})
+    
+    
+class NoteTeacherUpdateView(APIView):
+    """
+    PATCH /api/v1/notes/teacher/<id>/update/
+    Allows teachers to update their own note and resubmit it for review.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Teacher Update Note (Resubmit)",
+        request=NoteTeacherUpdateSerializer,
+        responses={200: NoteTeacherViewSerializer}
+    )
+    def patch(self, request, pk):
+        note = get_object_or_404(Note, pk=pk)
+        
+        # 1. Permission check
+        if note.uploaded_by != request.user:
+            return Response({'error': 'You can only update your own notes.'}, status=status.HTTP_403_FORBIDDEN)
+            
+        # 2. Status check: Only allow updates if PENDING or REJECTED
+        if note.status not in [Note.Status.PENDING, Note.Status.REJECTED]:
+            return Response(
+                {'error': f'Notes in {note.get_status_display()} status cannot be updated. Contact an admin.'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        serializer = NoteTeacherUpdateSerializer(note, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        updated_note = serializer.save()
+        
+        return Response({
+            'message': 'Note updated and resubmitted for review.',
+            'note': NoteTeacherViewSerializer(updated_note, context={'request': request}).data
+        }, status=status.HTTP_200_OK)

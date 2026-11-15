@@ -26,6 +26,8 @@ urlpatterns = [
     
     # 6. Delete Note (Teachers can delete their own unpublished, Editors/Admins can delete any)
     path('<int:pk>/delete/', views.NoteDeleteView.as_view(), name='note-delete'),
+    
+    path('teacher/<int:pk>/update/', views.NoteTeacherUpdateView.as_view(), name='note-teacher-update'),
 
     # ========================================================================
     # OLD QUESTIONS WORKFLOW

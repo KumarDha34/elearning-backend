@@ -225,3 +225,31 @@ class OldQuestionApprovalSerializer(serializers.Serializer):
 
 class OldQuestionResubmitSerializer(serializers.Serializer):
     resubmit_note = serializers.CharField(required=False, allow_blank=True)
+    
+class NoteTeacherUpdateSerializer(serializers.ModelSerializer):
+    """
+    Allows Teachers to update their note (title, description, PDF) 
+    ONLY if it is PENDING or REJECTED.
+    """
+    class Meta:
+        model = Note
+        fields = ['title', 'description', 'pdf_file', 'subject', 'class_level', 'chapter']
+        
+    def validate_pdf_file(self, value):
+        if value and not value.name.lower().endswith('.pdf'):
+            raise serializers.ValidationError("Only PDF files are allowed.")
+        return value
+
+    def update(self, instance, validated_data):
+        # Reset status to PENDING so the editor reviews it again
+        instance.status = Note.Status.PENDING
+        # Clear old editor feedback
+        instance.editor_feedback = ""
+        instance.reviewed_by = None
+        instance.reviewed_at = None
+        
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+            
+        instance.save()
+        return instance
