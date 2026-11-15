@@ -23,7 +23,7 @@ from .serializers import (
     BlogCommentSerializer,
     BlogCommentWriteSerializer,
 )
-from .cache_service import increment_like_count,decrement_like_count,get_like_count
+from .cache_service import increment_like_count,decrement_like_count,get_like_count,get_view_count,increment_view_count
 logger = logging.getLogger(__name__)
 
 
@@ -63,9 +63,9 @@ class BlogCategoryListCreateView(APIView):
         responses={201: BlogCategorySerializer},
     )
     def post(self, request):
-        if not CanWriteBlog().has_permission(request, self):
+        if not CanModerateBlog().has_permission(request, self):
             return Response(
-                {'error': 'Only instructors, editors, or admins can create categories.'},
+                {'error': 'Only editors or admins can create categories.'}, 
                 status=status.HTTP_403_FORBIDDEN,
             )
         serializer = BlogCategoryWriteSerializer(data=request.data)
@@ -94,8 +94,8 @@ class BlogCategoryDetailView(APIView):
         return Response(BlogCategorySerializer(cat).data)
 
     def patch(self, request, pk):
-        if not CanWriteBlog().has_permission(request, self):
-            return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+        if not CanModerateBlog().has_permission(request, self):
+            return Response({'error': 'Only editors or admins can update categories.'}, status=status.HTTP_403_FORBIDDEN)
         cat = self.get_object(pk)
         serializer = BlogCategoryWriteSerializer(cat, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
@@ -103,8 +103,8 @@ class BlogCategoryDetailView(APIView):
         return Response(BlogCategorySerializer(cat).data)
 
     def delete(self, request, pk):
-        if not CanWriteBlog().has_permission(request, self):
-            return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+        if not CanModerateBlog().has_permission(request, self):
+            return Response({'error': 'Only editors or admins can delete categories.'}, status=status.HTTP_403_FORBIDDEN)
         cat = self.get_object(pk)
         cat.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -120,6 +120,7 @@ class BlogPostListCreateView(APIView):
     POST /posts/  → create (instructor/editor/admin)
     """
     serializer_class = BlogPostListSerializer
+    permission_classes = [AllowAny]
 
     @extend_schema(
         summary="List Blog Posts",
@@ -128,14 +129,18 @@ class BlogPostListCreateView(APIView):
             "Public list of published posts. Use filters:\n"
             "- `?mine=1` → your own posts (auth required)\n"
             "- `?status=pending` → pending posts (moderator only)\n"
+            "- `?all=1` → view all posts (Admin/Editor only)\n"
             "- `?category=news` → filter by category slug\n"
-            "- `?tag=physics` → filter by tag"
+            "- `?tag=physics` → filter by tag\n"
+            "- `?search=newton` → search by title or content"
         ),
         parameters=[
             OpenApiParameter('mine', OpenApiTypes.INT, description='1 = my posts'),
             OpenApiParameter('status', OpenApiTypes.STR, description='draft|pending|published|rejected'),
+            OpenApiParameter('all', OpenApiTypes.INT, description='1 = view all posts (Admin/Editor only)'), 
             OpenApiParameter('category', OpenApiTypes.STR, description='Category slug'),
             OpenApiParameter('tag', OpenApiTypes.STR, description='Tag'),
+            OpenApiParameter('search', OpenApiTypes.STR, description='Search by title or content'),
         ],
         responses={200: BlogPostListSerializer(many=True)},
     )
@@ -145,17 +150,37 @@ class BlogPostListCreateView(APIView):
             .select_related('uploaded_by', 'category')
         )
 
-        # Default filter: published only
+        # ── Status Filtering Logic ──
         status_param = request.query_params.get('status')
-        if status_param:
+        show_all = request.query_params.get('all') == '1'
+        is_moderator = CanModerateBlog().has_permission(request, self)
+        is_admin = request.user.is_authenticated and request.user.is_admin
+
+        if show_all:
+            # Admin sees EVERYTHING. Editor sees everything EXCEPT drafts.
+            if not is_moderator:
+                return Response(
+                    {'error': 'Only editors or admins can view all posts.'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            if is_admin:
+                # Admin: no status filter
+                pass
+            else:
+                # Editor: exclude drafts
+                qs = qs.exclude(status=BlogPost.Status.DRAFT)
+
+        elif status_param:
             if status_param == 'pending':
-                if not CanModerateBlog().has_permission(request, self):
+                if not is_moderator:
                     return Response(
                         {'error': 'Only moderators can view pending posts.'},
                         status=status.HTTP_403_FORBIDDEN,
                     )
             qs = qs.filter(status=status_param)
+
         else:
+            # Default: public sees only published
             qs = qs.filter(status=BlogPost.Status.PUBLISHED)
 
         # My posts filter
@@ -169,6 +194,14 @@ class BlogPostListCreateView(APIView):
             qs = qs.filter(category__slug=cat)
         if tag := request.query_params.get('tag'):
             qs = qs.filter(tags__contains=[tag])
+
+        search_query = request.query_params.get('search')
+        if search_query:
+            qs = qs.filter(
+                Q(title__icontains=search_query) |
+                Q(description__icontains=search_query) |
+                Q(content__icontains=search_query)
+            )
 
         qs = qs.order_by('-published_at', '-created_at')
         return Response(BlogPostListSerializer(qs, many=True).data)
@@ -216,15 +249,20 @@ class BlogPostDetailView(APIView):
             BlogPost.objects
             .filter(status=BlogPost.Status.PUBLISHED)
             .select_related('uploaded_by', 'category')
-            .prefetch_related(Prefetch(...))
+            .prefetch_related(
+                Prefetch(
+                    'comments',
+                    queryset=BlogComment.objects
+                        .filter(is_active=True, parent__isnull=True)
+                        .select_related('author')
+                        .annotate(_replies_count=Count('replies', filter=Q(replies__is_active=True))),
+                    to_attr='_prefetched_comments',
+                )
+            )
         )
         post = get_object_or_404(qs, slug=slug)
-
-        # ── INCREMENT VIEWS (atomic) ──
-        BlogPost.objects.filter(pk=post.pk).update(views=post.views + 1)
-        post.views += 1
-
-        # ── OVERRIDE likes_count FROM CACHE ──
+        increment_view_count(post.pk)
+        post.views = get_view_count(post.pk)
         post.likes_count = get_like_count(post.pk)
 
         # ── is_liked flag ──
@@ -261,6 +299,12 @@ class BlogPostUpdateView(APIView):
         responses={200: BlogPostListSerializer},
     )
     def patch(self, request, pk):
+        if not request.data:
+            return Response(
+                {'error': 'Request body cannot be empty. Provide fields to edit or a status to change.'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         post = get_object_or_404(BlogPost, pk=pk)
         is_author = post.uploaded_by == request.user
         is_moderator = request.user.is_editor or request.user.is_admin

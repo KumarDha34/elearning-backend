@@ -155,6 +155,8 @@ class BlogPostDetailSerializer(serializers.ModelSerializer):
 
 class BlogPostWriteSerializer(serializers.ModelSerializer):
     """Create / update — sanitizes content."""
+    tags = serializers.ListField(child=serializers.CharField(), required=False)
+
     class Meta:
         model = BlogPost
         fields = ['title', 'description', 'content', 'featured_image', 'category', 'tags']
