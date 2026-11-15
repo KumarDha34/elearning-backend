@@ -100,7 +100,7 @@ class SignupView(APIView):
         ).exists()
         if recent:
             return Response(
-                {'error': 'Please wait before requesting another OTP.'},
+                {'phone_number': 'Please wait before requesting another OTP.'},
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
             )
 
@@ -169,7 +169,7 @@ class OTPSendView(APIView):
         ).exists()
         if recent:
             return Response(
-                {'error': 'Please wait before requesting another OTP.'},
+                {'phone_number': 'Please wait before requesting another OTP.'},
                 status=status.HTTP_429_TOO_MANY_REQUESTS
             )
 
