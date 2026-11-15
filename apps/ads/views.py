@@ -1,6 +1,6 @@
 # apps/ads/views.py
 
-from django.db.models import Count, Q, F, FloatField, ExpressionWrapper
+from django.db.models import Count, Q, F, FloatField, ExpressionWrapper, Case, When
 from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.views import APIView
@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.generics import get_object_or_404
 from drf_spectacular.utils import extend_schema
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
 from .models import AdCampaign, AdInteraction
 from .serializers import (
@@ -21,6 +22,7 @@ from .services.delivery import AdDeliveryService
 
 class AdCampaignViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAdminUser]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_queryset(self):
         # Annotate counts here to avoid N+1 queries in the list serializer
@@ -34,8 +36,13 @@ class AdCampaignViewSet(viewsets.ModelViewSet):
                 filter=Q(interactions__interaction_type=AdInteraction.InteractionType.CLICK),
             ),
         ).annotate(
-            ctr=ExpressionWrapper(
-                F('clicks') * 100.0 / F('impressions'),
+            # Safely handle division by zero using Case/When
+            ctr=Case(
+                When(impressions=0, then=0.0),
+                default=ExpressionWrapper(
+                    F('clicks') * 100.0 / F('impressions'),
+                    output_field=FloatField(),
+                ),
                 output_field=FloatField(),
             )
         ).prefetch_related('targeting__schools', 'targeting__faculties', 'targeting__classes')
