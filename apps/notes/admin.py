@@ -1,19 +1,14 @@
 from django.contrib import admin
-
-# Register your models here.
-# apps/notes/admin.py
-from django.contrib import admin
 from django.db import models
 from django.utils.html import format_html
 from django.utils import timezone
-from django_ckeditor_5.widgets import CKEditor5Widget  # ✅ CKEditor 5 widget
+from django_ckeditor_5.widgets import CKEditor5Widget
 from .models import Note
-
 
 @admin.register(Note)
 class NoteAdmin(admin.ModelAdmin):
     """
-    Admin configuration for Note model with CKEditor 5 support
+    Admin configuration for Note model with CKEditor 5 support.
     """
     
     # List View Configuration
@@ -42,11 +37,10 @@ class NoteAdmin(admin.ModelAdmin):
         'description',
         'content',
         'uploaded_by__phone_number',
-        'uploaded_by__first_name',
-        'uploaded_by__last_name'
+        'uploaded_by__full_name',
     )
     
-    # ✅ CKEditor 5 widget for content field
+    # CKEditor 5 widget for content field
     formfield_overrides = {
         models.TextField: {
             'widget': CKEditor5Widget(
@@ -56,44 +50,39 @@ class NoteAdmin(admin.ModelAdmin):
         },
     }
     
-    # Read-only fields
+    # Read-only fields (Updated to match new field names)
     readonly_fields = (
         'uploaded_by',
         'views',
         'created_at',
         'updated_at',
-        'approved_at',
         'published_at',
-        'rejected_at',
+        'reviewed_at',           # Renamed from rejected_at
         'featured_image_preview'
     )
     
     # Detail View Layout
     fieldsets = (
-        ('Basic Information', {
+        ('Phase 1: Teacher Upload', {
             'fields': (
                 'title',
-                'content',
                 'description',
-                'featured_image',
-                'featured_image_preview'
-            )
-        }),
-        ('Academic Details', {
-            'fields': (
+                'pdf_file',
                 'subject',
                 'class_level',
-                'chapter'
+                'chapter',
+                'uploaded_by',
             )
         }),
-        ('Status & Review', {
+        ('Phase 2: Editor Review', {
             'fields': (
+                'content',
+                'featured_image',
+                'featured_image_preview',
                 'status',
-                'rejection_reason',
-                'rejection_feedback',
-                'rejected_by',
-                'rejected_at',
-                'approved_at',
+                'editor_feedback',   # Renamed from rejection_reason
+                'reviewed_by',       # Renamed from rejected_by
+                'reviewed_at',       # Renamed from rejected_at
                 'published_at'
             )
         }),
@@ -107,27 +96,21 @@ class NoteAdmin(admin.ModelAdmin):
         }),
     )
     
-    # Bulk Actions
-    actions = ['approve_notes', 'reject_notes', 'mark_as_published']
-    
     # Custom Methods
     def subject_name(self, obj):
-        """Display subject name"""
         return obj.subject.name if obj.subject else '-'
     subject_name.short_description = 'Subject'
     
     def class_level_name(self, obj):
-        """Display class level name"""
         return obj.class_level.name if obj.class_level else '-'
     class_level_name.short_description = 'Class Level'
     
     def status_badge(self, obj):
-        """Display status as a colored badge"""
         status_colors = {
-            'draft': '#6c757d',     # gray
-            'pending': '#ffc107',   # orange/yellow
-            'published': '#28a745', # green
-            'rejected': '#dc3545',  # red
+            'teacher_review': '#17a2b8', # Blue for Teacher Review
+            'pending': '#ffc107',        # Yellow for Pending Editor Review
+            'published': '#28a745',      # Green for Published
+            'rejected': '#dc3545',       # Red for Rejected
         }
         color = status_colors.get(obj.status, '#6c757d')
         return format_html(
@@ -138,7 +121,6 @@ class NoteAdmin(admin.ModelAdmin):
     status_badge.short_description = 'Status'
     
     def featured_image_preview(self, obj):
-        """Show featured image thumbnail"""
         if obj.featured_image:
             return format_html(
                 '<img src="{}" style="max-height: 150px; max-width: 200px; border-radius: 4px;" />',
@@ -147,42 +129,12 @@ class NoteAdmin(admin.ModelAdmin):
         return 'No image'
     featured_image_preview.short_description = 'Image Preview'
     
-    # Bulk Actions Implementation
-    def approve_notes(self, request, queryset):
-        """Approve selected notes"""
-        updated = queryset.filter(status='pending').update(
-            status='published',
-            approved_at=timezone.now(),
-            published_at=timezone.now()
-        )
-        self.message_user(request, f'{updated} notes approved and published.')
-    approve_notes.short_description = 'Approve selected notes'
-    
-    def reject_notes(self, request, queryset):
-        """Reject selected notes"""
-        updated = queryset.filter(status='pending').update(
-            status='rejected',
-            rejected_at=timezone.now()
-        )
-        self.message_user(request, f'{updated} notes rejected.')
-    reject_notes.short_description = 'Reject selected notes'
-    
-    def mark_as_published(self, request, queryset):
-        """Mark selected notes as published"""
-        updated = queryset.filter(status='draft').update(
-            status='published',
-            published_at=timezone.now()
-        )
-        self.message_user(request, f'{updated} notes marked as published.')
-    mark_as_published.short_description = 'Mark as published'
-    
     def save_model(self, request, obj, form, change):
-        """Set uploaded_by when creating a new note"""
-        if not change:
+        """Automatically assign uploader if creating via admin."""
+        if not change and not obj.uploaded_by:
             obj.uploaded_by = request.user
         super().save_model(request, obj, form, change)
     
-    # Media for CKEditor 5
     class Media:
         css = {
             'all': ('admin/css/ckeditor5.css',)

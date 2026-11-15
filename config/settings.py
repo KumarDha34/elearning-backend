@@ -48,7 +48,7 @@ INSTALLED_APPS = [
     "apps.accounts",
     "apps.academics",
     "apps.notes",
-    "apps.ads",
+    # "apps.ads",
 ]
 
 AUTH_USER_MODEL = 'accounts.User'
@@ -74,8 +74,7 @@ CKEDITOR_5_CONFIGS = {
                 'imageUpload',
                 'mediaEmbed',
                 '|',
-                'sourceEditing',
-                '|',
+                
                 'undo',
                 'redo',
             ]

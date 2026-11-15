@@ -1,67 +1,48 @@
 from django.urls import path
-from .views import (
-    NoteListView,
-    NoteCreateView,
-    NoteDetailView,
-    NoteUpdateView,
-    NoteDeleteView,
-    NoteApprovalView,
-    NotePreviewView,
-    NoteStatusUpdateView,
-    NoteResubmitView,
-    NoteRejectInfoView,
-    OldQuestionCreateView,
-    OldQuestionListView,
-    OldQuestionDetailView,
-    OldQuestionUpdateView,
-    OldQuestionDeleteView,
-    OldQuestionApprovalView,
-    MyOldQuestionsView,OldQuestionResubmitView
-)
+from . import views
+
+app_name = 'notes'
 
 urlpatterns = [
-    # ============================================================
-    # DISPLAY (Everyone)
-    # ============================================================
-    path('', NoteListView.as_view(), name='note-list'),           # Display notes
-    path('<int:pk>/', NoteDetailView.as_view(), name='note-detail'),  # Display note
+    # ========================================================================
+    # NOTE WORKFLOW (TWO-PHASE)
+    # ========================================================================
     
-    # ============================================================
-    # TEACHER ACTIONS (Verified Teachers Only)
-    # ============================================================
-    path('create/', NoteCreateView.as_view(), name='note-create'),      # Create note
-    path('preview/', NotePreviewView.as_view(), name='note-preview'),    # Preview note
-    path('<int:pk>/update/', NoteUpdateView.as_view(), name='note-update'),  # Update note
-    path('<int:pk>/delete/', NoteDeleteView.as_view(), name='note-delete'),  # Delete note
-    path('<int:pk>/status/', NoteStatusUpdateView.as_view(), name='note-status'),  # Update status
-    path('<int:pk>/resubmit/', NoteResubmitView.as_view(), name='note-resubmit'),  # Resubmit rejected
+    # 1. Phase 1: Teacher Uploads PDF
+    path('teacher/upload/', views.NoteTeacherUploadView.as_view(), name='note-teacher-upload'),
     
-    # ============================================================
-    # EDITOR/ADMIN ACTIONS
-    # ============================================================
-    path('<int:pk>/approve/', NoteApprovalView.as_view(), name='note-approve'), 
+    # 2. Teacher Dashboard: View own notes & statuses (pending, rejected, etc.)
+    path('teacher/my-notes/', views.NoteTeacherListView.as_view(), name='note-teacher-list'),
     
-    # ============================================================
-    # INFO
-    # ============================================================
-    path('<int:pk>/reject-info/', NoteRejectInfoView.as_view(), name='note-reject-info'),
+    # 3. Phase 2: Editor Reviews, adds CKEditor content, and sets status
+    path('editor/<int:pk>/review/', views.NoteEditorReviewView.as_view(), name='note-editor-review'),
+    
+    # 4. Status Filter: Easily get all pending, rejected, or teacher_review notes
+    path('status/<str:status>/', views.NoteStatusListView.as_view(), name='note-status-list'),
+    
+    # 5. Public Display: Only shows PUBLISHED notes
+    path('', views.NotePublicListView.as_view(), name='note-public-list'),
+    path('<int:pk>/', views.NotePublicDetailView.as_view(), name='note-public-detail'),
+    
+    # 6. Delete Note (Teachers can delete their own unpublished, Editors/Admins can delete any)
+    path('<int:pk>/delete/', views.NoteDeleteView.as_view(), name='note-delete'),
 
-    path('old-questions/', OldQuestionListView.as_view(), name='old-question-list'),
+    # ========================================================================
+    # OLD QUESTIONS WORKFLOW
+    # ========================================================================
     
-    # 2. View single question (Everyone - published only)
-    path('old-questions/<int:pk>/', OldQuestionDetailView.as_view(), name='old-question-detail'),
+    # 1. Public Display
+    path('old-questions/', views.OldQuestionListView.as_view(), name='old-question-list'),
+    path('old-questions/<int:pk>/', views.OldQuestionDetailView.as_view(), name='old-question-detail'),
     
-    # 3. Create/Upload question (Teacher only)
-    path('old-questions/create/', OldQuestionCreateView.as_view(), name='old-question-create'),
+    # 2. Teacher Actions
+    path('old-questions/create/', views.OldQuestionCreateView.as_view(), name='old-question-create'),
+    path('old-questions/my-questions/', views.MyOldQuestionsView.as_view(), name='old-question-my'),
+    path('old-questions/<int:pk>/update/', views.OldQuestionUpdateView.as_view(), name='old-question-update'),
+    path('old-questions/<int:pk>/delete/', views.OldQuestionDeleteView.as_view(), name='old-question-delete'),
+    path('old-questions/<int:pk>/resubmit/', views.OldQuestionResubmitView.as_view(), name='old-question-resubmit'),
+    path('old-questions/<int:pk>/reject-info/', views.OldQuestionRejectInfoView.as_view(), name='old-question-reject-info'),
     
-    # 4. Update own question (Teacher - pending only)
-    path('old-questions/<int:pk>/update/', OldQuestionUpdateView.as_view(), name='old-question-update'),
-    
-    path('old-questions/<int:pk>/delete/', OldQuestionDeleteView.as_view(), name='old-question-delete'),
-    
-    path('old-questions/<int:pk>/approve/', OldQuestionApprovalView.as_view(), name='old-question-approve'),
-    
-    path('old-questions/my-questions/', MyOldQuestionsView.as_view(), name='old-question-my'),
-    path('old-questions/<int:pk>/resubmit/', OldQuestionResubmitView.as_view(), name='old-question-resubmit'),
-
+    # 3. Admin Actions
+    path('old-questions/<int:pk>/approve/', views.OldQuestionApprovalView.as_view(), name='old-question-approve'),
 ]
