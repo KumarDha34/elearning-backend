@@ -6,9 +6,7 @@ from .models import Note, OldQuestion
 from .utils import sanitize_ckeditor_html
 import re
 
-# ============================================================================
 # NOTE SERIALIZERS
-# ============================================================================
 
 class NoteTeacherUploadSerializer(serializers.ModelSerializer):
     class Meta:
@@ -18,6 +16,10 @@ class NoteTeacherUploadSerializer(serializers.ModelSerializer):
     def validate_pdf_file(self, value):
         if not value.name.lower().endswith('.pdf'):
             raise serializers.ValidationError("Only PDF files are allowed.")
+        
+        max_size = 5 * 1024 * 1024  # 5 MB in bytes
+        if value.size > max_size:
+            raise serializers.ValidationError("File size cannot exceed 5MB.")
         return value
 
     def validate(self, data):
@@ -27,8 +29,7 @@ class NoteTeacherUploadSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({'error': 'Only teachers can upload notes.'})
         if not user.is_verified_teacher:
             raise serializers.ValidationError({'error': 'Teacher account must be verified to upload notes.'})
-#        # if teacher.content_count >= teacher.content_limit:
-        #     raise serializers.ValidationError({'error': f'Content limit reached ({teacher.content_count}/{teacher.content_limit})'})
+
         return data
     
     def create(self, validated_data):
@@ -75,7 +76,7 @@ class NoteEditorReviewSerializer(serializers.ModelSerializer):
             instance.published_at = timezone.now()
             
             
-            #implemented throttling as it will checck the db - Sujal
+    #----------------implemented throttling as it will checck the db - Sujal----------------------
             # teacher = instance.uploaded_by.teacher_profile
             # teacher.content_count += 1
             # teacher.save(update_fields=['content_count'])
@@ -150,10 +151,39 @@ class NotePublicViewSerializer(serializers.ModelSerializer):
         return None
 
 
-# ============================================================================
-# OLD QUESTION SERIALIZERS
-# ============================================================================
+class NoteTeacherUpdateSerializer(serializers.ModelSerializer):
+    """
+    Allows Teachers to update their note (title, description, PDF) 
+    ONLY if it is PENDING or REJECTED.
+    """
+    class Meta:
+        model = Note
+        fields = ['title', 'description', 'pdf_file', 'subject', 'class_level', 'chapter']
+        
+    def validate_pdf_file(self, value):
+        if value and not value.name.lower().endswith('.pdf'):
+            raise serializers.ValidationError("Only PDF files are allowed.")
+        
+        max_size = 5 * 1024 * 1024  # 5 MB in bytes
+        if value.size > max_size:
+            raise serializers.ValidationError("File size cannot exceed 5MB.")
+        return value
 
+    def update(self, instance, validated_data):
+        # Reset status to PENDING so the editor reviews it again
+        instance.status = Note.Status.PENDING
+        # Clear old editor feedback
+        instance.editor_feedback = ""
+        instance.reviewed_by = None
+        instance.reviewed_at = None
+        
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+            
+        instance.save()
+        return instance
+
+# OLD QUESTION SERIALIZERS
 class OldQuestionCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = OldQuestion
@@ -234,30 +264,3 @@ class OldQuestionApprovalSerializer(serializers.Serializer):
 class OldQuestionResubmitSerializer(serializers.Serializer):
     resubmit_note = serializers.CharField(required=False, allow_blank=True)
     
-class NoteTeacherUpdateSerializer(serializers.ModelSerializer):
-    """
-    Allows Teachers to update their note (title, description, PDF) 
-    ONLY if it is PENDING or REJECTED.
-    """
-    class Meta:
-        model = Note
-        fields = ['title', 'description', 'pdf_file', 'subject', 'class_level', 'chapter']
-        
-    def validate_pdf_file(self, value):
-        if value and not value.name.lower().endswith('.pdf'):
-            raise serializers.ValidationError("Only PDF files are allowed.")
-        return value
-
-    def update(self, instance, validated_data):
-        # Reset status to PENDING so the editor reviews it again
-        instance.status = Note.Status.PENDING
-        # Clear old editor feedback
-        instance.editor_feedback = ""
-        instance.reviewed_by = None
-        instance.reviewed_at = None
-        
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-            
-        instance.save()
-        return instance
