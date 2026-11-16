@@ -10,13 +10,14 @@ from drf_spectacular.utils import extend_schema, OpenApiResponse
 from .models import Note, OldQuestion
 from .serializers import *
 from .permissions import IsVerifiedTeacherOrAdmin, IsAdminOrEditor
+from .throttles import TeacherWeeklyUploadThrottle
 
-# ============================================================================
 # NOTE VIEWS (TWO-PHASE WORKFLOW)
-# ============================================================================
 
 class NoteTeacherUploadView(APIView):
     permission_classes = [IsVerifiedTeacherOrAdmin] 
+    serializer_class = NoteTeacherUploadSerializer
+    throttle_classes = [TeacherWeeklyUploadThrottle]
 
     @extend_schema(
         summary="Teacher Upload Note PDF",
@@ -32,6 +33,7 @@ class NoteTeacherUploadView(APIView):
 
 class NoteEditorReviewView(APIView):
     permission_classes = [IsAdminOrEditor]
+    serializer_class = NoteEditorReviewSerializer
 
     @extend_schema(
         summary="Editor Review & Publish Note",
@@ -59,6 +61,7 @@ class NoteEditorReviewView(APIView):
 
 class NoteTeacherListView(APIView):
     permission_classes = [IsAuthenticated]
+    serializer_class = NoteTeacherViewSerializer
 
     @extend_schema(summary="Teacher View Own Notes", responses={200: NoteTeacherViewSerializer(many=True)})
     def get(self, request):
@@ -76,6 +79,7 @@ class NoteTeacherListView(APIView):
 
 class NoteStatusListView(APIView):
     permission_classes = [IsAuthenticated]
+    serializer_class = NoteTeacherViewSerializer
 
     @extend_schema(summary="List Notes by Status", responses={200: NoteTeacherViewSerializer(many=True)})
     def get(self, request, status):
@@ -98,6 +102,7 @@ class NoteStatusListView(APIView):
 
 class NotePublicListView(APIView):
     permission_classes = [IsAuthenticated]
+    serializer_class = NotePublicViewSerializer
 
     @extend_schema(summary="Public List of Published Notes", responses={200: NotePublicViewSerializer(many=True)})
     def get(self, request):
@@ -118,6 +123,7 @@ class NotePublicListView(APIView):
 
 class NotePublicDetailView(APIView):
     permission_classes = [IsAuthenticated]
+    serializer_class = NotePublicViewSerializer
 
     @extend_schema(summary="Public View Single Note", responses={200: NotePublicViewSerializer})
     def get(self, request, pk):
@@ -136,14 +142,17 @@ class NotePublicDetailView(APIView):
 class NoteDeleteView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(summary="Delete Note", responses={204: OpenApiResponse(description="Note deleted")})
+    @extend_schema(
+        summary="Delete Note", 
+        responses={200: OpenApiResponse(description="Note deleted successfully")} # Changed to 200
+    )
     def delete(self, request, pk):
         note = get_object_or_404(Note, pk=pk)
         user = request.user
 
         if user.role in ['admin', 'editor']:
             note.delete()
-            return Response(status=status.HTTP_204_NO_CONTENT)
+            return Response({'message': 'Note deleted successfully.'}, status=status.HTTP_200_OK)
 
         if user.role == 'instructor':
             if note.uploaded_by != user:
@@ -151,9 +160,39 @@ class NoteDeleteView(APIView):
             if note.status == Note.Status.PUBLISHED:
                 return Response({'error': 'Published notes cannot be deleted. Please contact an admin.'}, status=status.HTTP_400_BAD_REQUEST)
             note.delete()
-            return Response(status=status.HTTP_204_NO_CONTENT)
+            return Response({'message': 'Note deleted successfully.'}, status=status.HTTP_200_OK)
 
         return Response({'error': 'You do not have permission to delete this note.'}, status=status.HTTP_403_FORBIDDEN)
+class NoteTeacherUpdateView(APIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = NoteTeacherUpdateSerializer
+    from .throttles import TeacherWeeklyUploadThrottle
+
+    @extend_schema(
+        summary="Teacher Update Note (Resubmit)",
+        request=NoteTeacherUpdateSerializer,
+        responses={200: NoteTeacherViewSerializer}
+    )
+    def patch(self, request, pk):
+        note = get_object_or_404(Note, pk=pk)
+        
+        if note.uploaded_by != request.user:
+            return Response({'error': 'You can only update your own notes.'}, status=status.HTTP_403_FORBIDDEN)
+            
+        if note.status not in [Note.Status.PENDING, Note.Status.REJECTED]:
+            return Response(
+                {'error': f'Notes in {note.get_status_display()} status cannot be updated. Contact an admin.'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        serializer = NoteTeacherUpdateSerializer(note, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        updated_note = serializer.save()
+        
+        return Response({
+            'message': 'Note updated and resubmitted for review.',
+            'note': NoteTeacherViewSerializer(updated_note, context={'request': request}).data
+        }, status=status.HTTP_200_OK)
 
 
 # ============================================================================
@@ -162,6 +201,7 @@ class NoteDeleteView(APIView):
 
 class OldQuestionCreateView(APIView):
     permission_classes = [IsVerifiedTeacherOrAdmin]
+    serializer_class = OldQuestionCreateSerializer # <--- ADDED
 
     def post(self, request):
         serializer = OldQuestionCreateSerializer(data=request.data, context={'request': request})
@@ -171,6 +211,14 @@ class OldQuestionCreateView(APIView):
 
 class OldQuestionListView(APIView):
     permission_classes = [IsAuthenticated]
+    serializer_class = OldQuestionListSerializer 
+    
+    
+    @extend_schema(
+        summary="List Old Questions",
+        operation_id="old_question_list"  
+    )
+
     def get(self, request):
         queryset = OldQuestion.objects.filter(status='published')
         filters = {}
@@ -184,6 +232,13 @@ class OldQuestionListView(APIView):
 
 class OldQuestionDetailView(APIView):
     permission_classes = [IsAuthenticated]
+    serializer_class = OldQuestionDetailSerializer 
+    
+    @extend_schema(
+        summary="Get Old Question Details",
+        operation_id="old_question_detail"  
+    )
+
     def get(self, request, pk):
         question = get_object_or_404(OldQuestion, pk=pk)
         is_owner = question.uploaded_by == request.user if request.user.is_authenticated else False
@@ -196,6 +251,8 @@ class OldQuestionDetailView(APIView):
 
 class OldQuestionUpdateView(APIView):
     permission_classes = [IsAuthenticated]
+    serializer_class = OldQuestionUpdateSerializer # <--- ADDED
+
     def patch(self, request, pk):
         question = get_object_or_404(OldQuestion, pk=pk)
         if not (request.user.role == 'admin' or (request.user.is_instructor and request.user.is_verified_teacher and question.uploaded_by == request.user)):
@@ -209,6 +266,8 @@ class OldQuestionUpdateView(APIView):
 
 class OldQuestionDeleteView(APIView):
     permission_classes = [IsAuthenticated]
+    serializer_class = OldQuestionDetailSerializer # <--- ADDED
+
     def delete(self, request, pk):
         question = get_object_or_404(OldQuestion, pk=pk)
         if not (request.user.role == 'admin' or (request.user.is_instructor and request.user.is_verified_teacher and question.uploaded_by == request.user)):
@@ -220,6 +279,8 @@ class OldQuestionDeleteView(APIView):
 
 class OldQuestionApprovalView(APIView):
     permission_classes = [IsAdminUser]
+    serializer_class = OldQuestionApprovalSerializer # <--- ADDED
+
     def post(self, request, pk):
         question = get_object_or_404(OldQuestion, pk=pk)
         if question.status != 'pending':
@@ -237,6 +298,8 @@ class OldQuestionApprovalView(APIView):
 
 class OldQuestionResubmitView(APIView):
     permission_classes = [IsAuthenticated]
+    serializer_class = OldQuestionResubmitSerializer # <--- ADDED
+
     def post(self, request, pk):
         question = get_object_or_404(OldQuestion, pk=pk)
         if question.uploaded_by != request.user and request.user.role != 'admin':
@@ -250,6 +313,8 @@ class OldQuestionResubmitView(APIView):
 
 class MyOldQuestionsView(APIView):
     permission_classes = [IsAuthenticated]
+    serializer_class = OldQuestionListSerializer # <--- ADDED
+
     def get(self, request):
         if not request.user.is_instructor:
             return Response({'error': 'Only teachers can access this.'}, status=status.HTTP_403_FORBIDDEN)
@@ -258,6 +323,8 @@ class MyOldQuestionsView(APIView):
 
 class OldQuestionRejectInfoView(APIView):
     permission_classes = [IsAuthenticated]
+    serializer_class = OldQuestionDetailSerializer # <--- ADDED
+
     def get(self, request, pk):
         question = get_object_or_404(OldQuestion, pk=pk)
         if question.uploaded_by != request.user and request.user.role not in ['admin', 'editor']:
@@ -265,39 +332,3 @@ class OldQuestionRejectInfoView(APIView):
         if question.status != 'rejected':
             return Response({'message': 'Not rejected.', 'status': question.status})
         return Response({'id': question.id, 'title': question.title, 'status': question.status, 'rejection_reason': question.rejection_reason, 'can_resubmit': True, 'question': OldQuestionDetailSerializer(question).data})
-    
-    
-class NoteTeacherUpdateView(APIView):
-    """
-    PATCH /api/v1/notes/teacher/<id>/update/
-    Allows teachers to update their own note and resubmit it for review.
-    """
-    permission_classes = [IsAuthenticated]
-
-    @extend_schema(
-        summary="Teacher Update Note (Resubmit)",
-        request=NoteTeacherUpdateSerializer,
-        responses={200: NoteTeacherViewSerializer}
-    )
-    def patch(self, request, pk):
-        note = get_object_or_404(Note, pk=pk)
-        
-        # 1. Permission check
-        if note.uploaded_by != request.user:
-            return Response({'error': 'You can only update your own notes.'}, status=status.HTTP_403_FORBIDDEN)
-            
-        # 2. Status check: Only allow updates if PENDING or REJECTED
-        if note.status not in [Note.Status.PENDING, Note.Status.REJECTED]:
-            return Response(
-                {'error': f'Notes in {note.get_status_display()} status cannot be updated. Contact an admin.'}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        serializer = NoteTeacherUpdateSerializer(note, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        updated_note = serializer.save()
-        
-        return Response({
-            'message': 'Note updated and resubmitted for review.',
-            'note': NoteTeacherViewSerializer(updated_note, context={'request': request}).data
-        }, status=status.HTTP_200_OK)

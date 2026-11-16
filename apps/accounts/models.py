@@ -274,7 +274,7 @@ class TeacherProfile(models.Model):
         max_digits=3, decimal_places=2, default=0.00,
         verbose_name='Average Rating',
     )
-    content_limit = models.IntegerField(default=50, verbose_name='Content Limit')
+    content_limit = models.IntegerField(default=6, verbose_name='Content Limit')
     content_count = models.IntegerField(default=0, verbose_name='Content Count')
     bio = models.TextField(blank=True, verbose_name='Biography')
     verification_document = models.FileField(

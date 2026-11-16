@@ -22,14 +22,13 @@ class NoteTeacherUploadSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         user = self.context['request'].user
-        if user.role == 'admin': return data
+        # if user.role == 'admin': return data  #admin access in uploading notes not allowed
         if not hasattr(user, 'teacher_profile'):
             raise serializers.ValidationError({'error': 'Only teachers can upload notes.'})
         if not user.is_verified_teacher:
             raise serializers.ValidationError({'error': 'Teacher account must be verified to upload notes.'})
-        teacher = user.teacher_profile
-        if teacher.content_count >= teacher.content_limit:
-            raise serializers.ValidationError({'error': f'Content limit reached ({teacher.content_count}/{teacher.content_limit})'})
+#        # if teacher.content_count >= teacher.content_limit:
+        #     raise serializers.ValidationError({'error': f'Content limit reached ({teacher.content_count}/{teacher.content_limit})'})
         return data
     
     def create(self, validated_data):
@@ -74,9 +73,12 @@ class NoteEditorReviewSerializer(serializers.ModelSerializer):
         
         if status == Note.Status.PUBLISHED and instance.status != Note.Status.PUBLISHED:
             instance.published_at = timezone.now()
-            teacher = instance.uploaded_by.teacher_profile
-            teacher.content_count += 1
-            teacher.save(update_fields=['content_count'])
+            
+            
+            #implemented throttling as it will checck the db - Sujal
+            # teacher = instance.uploaded_by.teacher_profile
+            # teacher.content_count += 1
+            # teacher.save(update_fields=['content_count'])
             
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
@@ -104,19 +106,24 @@ class NoteTeacherViewSerializer(serializers.ModelSerializer):
             'content', 'editor_feedback', 'editor_name', 'reviewed_at', 'created_at'
         ]
 
+    @extend_schema_field(serializers.CharField(allow_null=True))
     def get_pdf_url(self, obj):
         request = self.context.get('request')
         if obj.pdf_file and request: return request.build_absolute_uri(obj.pdf_file.url)
         return None
-
+    
+    @extend_schema_field(serializers.CharField())
     def get_editor_feedback(self, obj):
         if not obj.editor_feedback: return ""
         return strip_tags(obj.editor_feedback).strip()
 
+    @extend_schema_field(serializers.CharField())
     def get_description(self, obj):
         if not obj.description: return ""
         return strip_tags(obj.description).strip()
-
+    
+    
+    @extend_schema_field(serializers.CharField(allow_null=True))
     def get_content(self, obj):
         if obj.status in ['teacher_review', 'published']:
             return obj.content
@@ -136,6 +143,7 @@ class NotePublicViewSerializer(serializers.ModelSerializer):
             'subject_name', 'class_level_name', 'uploaded_by_name', 'views', 'published_at'
         ]
 
+    @extend_schema_field(serializers.CharField(allow_null=True))
     def get_featured_image_url(self, obj):
         request = self.context.get('request')
         if obj.featured_image and request: return request.build_absolute_uri(obj.featured_image.url)
