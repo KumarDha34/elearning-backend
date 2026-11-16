@@ -370,6 +370,7 @@ class BlogPostDeleteView(APIView):
     """
     DELETE /posts/{id}/  → delete (author or admin)
     """
+    serializer_class = BlogPostListSerializer    
     permission_classes = [IsAuthenticated, CanWriteBlog]
 
     def delete(self, request, pk):
@@ -385,6 +386,7 @@ class BlogPostDeleteView(APIView):
 # ============================================================================
 
 class ToggleBlogLikeView(APIView):
+    serializer_class = BlogPostListSerializer
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
@@ -494,6 +496,7 @@ class TeacherFollowView(APIView):
     POST   /teachers/{id}/follow/  → follow (student only)
     DELETE /teachers/{id}/follow/  → unfollow
     """
+    serializer_class = BlogPostListSerializer
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):

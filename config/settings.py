@@ -274,6 +274,10 @@ SPECTACULAR_SETTINGS = {
         'ClassLevelType': 'apps.academics.models.ClassLevel.LevelType',
         'NoteStatus': 'apps.notes.models.Note.Status',
         'OldQuestionStatus': 'apps.notes.models.OldQuestion.Status',
+        'ApprovalStatusEnum': ['approved', 'rejected'],
+        'NoteStatusUpdateEnum': ['draft', 'pending', 'published'],
+        'BlogPostStatus': 'apps.blog.models.BlogPost.Status',
+        'AdCampaignStatus': 'apps.ads.models.AdCampaign.Status',
 
     },
     "SWAGGER_UI_TEMPLATE": "swagger-ui.html",

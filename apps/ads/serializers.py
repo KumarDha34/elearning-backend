@@ -3,6 +3,8 @@
 from rest_framework import serializers
 from apps.academics.models import School, Faculty, ClassLevel
 from .models import AdCampaign, AdTargeting, AdInteraction
+from drf_spectacular.utils import extend_schema_field
+
 
 
 class OptionalPKRelatedField(serializers.PrimaryKeyRelatedField):
@@ -136,7 +138,8 @@ class AdCampaignAdminSerializer(serializers.ModelSerializer):
                     clean_values = [v for v in values if v and str(v).strip() not in ['', '0']]
                     data.setlist(field, clean_values)
         return super().to_internal_value(data)
-
+    
+    @extend_schema_field(serializers.CharField(allow_null=True))
     def get_media_url(self, obj):
         if not obj.media_file:
             return None
@@ -270,13 +273,14 @@ class AdCampaignListSerializer(serializers.ModelSerializer):
             'targeting_summary', 'impressions', 'clicks', 'ctr',
             'created_at',
         ]
-
+    @extend_schema_field(serializers.CharField(allow_null=True))
     def get_media_url(self, obj):
         if not obj.media_file:
             return None
         request = self.context.get('request')
         return request.build_absolute_uri(obj.media_file.url) if request else obj.media_file.url
 
+    @extend_schema_field(serializers.CharField())
     def get_targeting_summary(self, obj):
         if obj.ad_type != AdCampaign.AdType.TARGETED:
             return 'Public — visible to everyone'
@@ -316,18 +320,22 @@ class AdFeedSerializer(serializers.ModelSerializer):
             'click_endpoint',
         ]
 
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
     def get_media_url(self, obj):
         if not obj.media_file:
             return None
         request = self.context.get('request')
         return request.build_absolute_uri(obj.media_file.url) if request else obj.media_file.url
 
+    @extend_schema_field(serializers.CharField())
     def get_impression_endpoint(self, obj):
         request = self.context.get('request')
         if not request:
             return None
         return request.build_absolute_uri(f'/api/v1/ads/{obj.id}/impression/')
 
+    @extend_schema_field(serializers.CharField())
     def get_click_endpoint(self, obj):
         request = self.context.get('request')
         if not request:
