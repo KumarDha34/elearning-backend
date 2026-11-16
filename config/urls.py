@@ -20,8 +20,6 @@ urlpatterns = [
     path('api/v1/auth/', include('apps.accounts.urls')),
     path('api/v1/academics/', include('apps.academics.urls')),
     path('api/v1/notes/', include('apps.notes.urls')),
-    
-    # Ads app (mounted at root /api/v1/ so URLs resolve to /api/v1/ads/...)
+    path('api/v1/blog/', include('apps.blog.urls')),
     path('api/v1/', include('apps.ads.urls')),
-    
-] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+]+ static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
