@@ -1,9 +1,34 @@
 # apps/ads/serializers.py
 
 from rest_framework import serializers
-
+from apps.academics.models import School, Faculty, ClassLevel
 from .models import AdCampaign, AdTargeting, AdInteraction
 
+
+class OptionalPKRelatedField(serializers.PrimaryKeyRelatedField):
+    def to_internal_value(self, data):
+        # 1. Catch completely empty or zero values from Swagger
+        if data in [0, '0', '', None, [0], ['0'], [], [None]]:
+            return []
+            
+        # 2. If Swagger sends a single string/int, wrap it in a list so many=True works
+        if not isinstance(data, list):
+            data = [data]
+            
+        # 3. Clean the list (remove empty strings or zeros, convert strings to ints)
+        clean_data = []
+        for item in data:
+            if item in [0, '0', '', None]:
+                continue
+            try:
+                clean_data.append(int(item))
+            except (ValueError, TypeError):
+                pass
+                
+        if not clean_data:
+            return []
+            
+        return super().to_internal_value(clean_data)
 
 class AdTargetingSerializer(serializers.ModelSerializer):
     school_ids = serializers.PrimaryKeyRelatedField(
@@ -49,42 +74,68 @@ class AdTargetingSerializer(serializers.ModelSerializer):
 
 
 class AdCampaignAdminSerializer(serializers.ModelSerializer):
-    targeting = AdTargetingSerializer(required=False)
+    school_ids = serializers.PrimaryKeyRelatedField(
+        many=True, 
+        queryset=School.objects.all(), 
+        required=False,
+        allow_empty=True,
+        help_text="Select schools to target."
+    )
+    faculty_ids = serializers.PrimaryKeyRelatedField(
+        many=True, 
+        queryset=Faculty.objects.all(), 
+        required=False,
+        allow_empty=True,
+        help_text="Select faculties to target."
+    )
+    class_level_ids = serializers.PrimaryKeyRelatedField(
+        many=True, 
+        queryset=ClassLevel.objects.all(), 
+        required=False,
+        allow_empty=True,
+        help_text="Select classes to target."
+    )
+    address_keywords = serializers.ListField(
+        child=serializers.CharField(), 
+        required=False,
+        allow_empty=True,
+        help_text="List of address keywords (e.g., ['Kathmandu', 'Lalitpur'])."
+    )
 
     impressions = serializers.IntegerField(read_only=True, required=False)
     clicks = serializers.IntegerField(read_only=True, required=False)
     ctr = serializers.FloatField(read_only=True, required=False)
-
     media_url = serializers.SerializerMethodField()
 
     class Meta:
         model = AdCampaign
         fields = [
-            'id',
-            'title',
-            'description',
-            'ad_type',
-            'ad_format',
-            'media_file',
-            'media_url',
-            'text_content',
-            'destination_type',
-            'destination_url',
-            'status',
-            'start_date',
-            'end_date',
-            'targeting',
-            'impressions',
-            'clicks',
-            'ctr',
-            'created_by',
-            'created_at',
-            'updated_at',
+            'id', 'title', 'description',
+            'ad_type', 'ad_format',
+            'media_file', 'media_url', 'text_content',
+            'destination_type', 'destination_url',
+            'status', 'start_date', 'end_date',
+            
+            'school_ids', 'faculty_ids', 'class_level_ids', 'address_keywords',
+            
+            'impressions', 'clicks', 'ctr',
+            'created_by', 'created_at', 'updated_at',
         ]
         read_only_fields = [
             'id', 'media_url', 'impressions', 'clicks', 'ctr',
             'created_by', 'created_at', 'updated_at',
         ]
+
+    def to_internal_value(self, data):
+        # Handle Swagger's empty array fields in multipart form data
+        if hasattr(data, 'lists'):
+            data = data.copy()
+            for field in ['school_ids', 'faculty_ids', 'class_level_ids', 'address_keywords']:
+                if field in data:
+                    values = data.getlist(field)
+                    clean_values = [v for v in values if v and str(v).strip() not in ['', '0']]
+                    data.setlist(field, clean_values)
+        return super().to_internal_value(data)
 
     def get_media_url(self, obj):
         if not obj.media_file:
@@ -137,62 +188,71 @@ class AdCampaignAdminSerializer(serializers.ModelSerializer):
                 })
 
         if ad_type == AdCampaign.AdType.TARGETED:
-            targeting = attrs.get('targeting')
-            if targeting is None and self.instance:
-                targeting_exists = hasattr(self.instance, 'targeting')
-            else:
-                targeting_exists = bool(targeting)
+            school_ids = attrs.get('school_ids', [])
+            faculty_ids = attrs.get('faculty_ids', [])
+            class_level_ids = attrs.get('class_level_ids', [])
+            address_keywords = attrs.get('address_keywords', [])
+            
+            has_rules = any([school_ids, faculty_ids, class_level_ids, address_keywords])
+            
+            if not has_rules and self.instance and hasattr(self.instance, 'targeting'):
+                t = self.instance.targeting
+                has_rules = t.schools.exists() or t.faculties.exists() or t.classes.exists() or bool(t.address_keywords)
 
-            if not targeting_exists:
+            if not has_rules:
                 raise serializers.ValidationError({
-                    'targeting': 'TARGETED campaigns require at least one targeting dimension.'
+                    'targeting': 'TARGETED campaigns require at least one targeting dimension (schools, faculties, classes, or address keywords).'
                 })
 
         return attrs
 
     def create(self, validated_data):
-        targeting_data = validated_data.pop('targeting', None)
+        school_ids = validated_data.pop('school_ids', [])
+        faculty_ids = validated_data.pop('faculty_ids', [])
+        class_level_ids = validated_data.pop('class_level_ids', [])
+        address_keywords = validated_data.pop('address_keywords', [])
+
         request = self.context.get('request')
         if request and not validated_data.get('created_by'):
             validated_data['created_by'] = request.user
 
         campaign = AdCampaign.objects.create(**validated_data)
 
-        if targeting_data:
-            self._write_targeting(campaign, targeting_data)
-        elif campaign.ad_type == AdCampaign.AdType.TARGETED:
-            AdTargeting.objects.create(campaign=campaign)
+        if campaign.ad_type == AdCampaign.AdType.TARGETED:
+            targeting, _ = AdTargeting.objects.get_or_create(campaign=campaign)
+            targeting.schools.set(school_ids)
+            targeting.faculties.set(faculty_ids)
+            targeting.classes.set(class_level_ids)
+            targeting.address_keywords = address_keywords
+            targeting.save()
 
         return campaign
 
     def update(self, instance, validated_data):
-        targeting_data = validated_data.pop('targeting', None)
+        school_ids = validated_data.pop('school_ids', None)
+        faculty_ids = validated_data.pop('faculty_ids', None)
+        class_level_ids = validated_data.pop('class_level_ids', None)
+        address_keywords = validated_data.pop('address_keywords', None)
 
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
 
-        if targeting_data is not None:
-            self._write_targeting(instance, targeting_data)
-        elif instance.ad_type == AdCampaign.AdType.TARGETED and not hasattr(instance, 'targeting'):
-            AdTargeting.objects.create(campaign=instance)
+        if instance.ad_type == AdCampaign.AdType.TARGETED:
+            targeting, _ = AdTargeting.objects.get_or_create(campaign=instance)
+            
+            if school_ids is not None:
+                targeting.schools.set(school_ids)
+            if faculty_ids is not None:
+                targeting.faculties.set(faculty_ids)
+            if class_level_ids is not None:
+                targeting.classes.set(class_level_ids)
+            if address_keywords is not None:
+                targeting.address_keywords = address_keywords
+                
+            targeting.save()
 
         return instance
-
-    def _write_targeting(self, campaign, targeting_data):
-        school_ids = targeting_data.pop('schools', [])
-        faculty_ids = targeting_data.pop('faculties', [])
-        class_ids = targeting_data.pop('classes', [])
-        address_keywords = targeting_data.pop('address_keywords', [])
-
-        targeting, _ = AdTargeting.objects.get_or_create(campaign=campaign)
-
-        targeting.address_keywords = address_keywords
-        targeting.save()
-
-        targeting.schools.set(school_ids)
-        targeting.faculties.set(faculty_ids)
-        targeting.classes.set(class_ids)
 
 
 class AdCampaignListSerializer(serializers.ModelSerializer):
