@@ -270,10 +270,6 @@ class TeacherProfile(models.Model):
     alternative_emails = models.JSONField(default=list, blank=True)
     alternative_phones = models.JSONField(default=list, blank=True)
 
-    rating_avg = models.DecimalField(
-        max_digits=3, decimal_places=2, default=0.00,
-        verbose_name='Average Rating',
-    )
     content_limit = models.IntegerField(default=6, verbose_name='Content Limit')
     content_count = models.IntegerField(default=0, verbose_name='Content Count')
     bio = models.TextField(blank=True, verbose_name='Biography')

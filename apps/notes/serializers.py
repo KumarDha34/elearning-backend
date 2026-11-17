@@ -2,7 +2,7 @@ from rest_framework import serializers
 from drf_spectacular.utils import extend_schema_field
 from django.utils.html import strip_tags
 from django.utils import timezone
-from .models import Note, OldQuestion
+from .models import Note, OldQuestion, NoteRating
 from .utils import sanitize_ckeditor_html
 import re
 
@@ -88,6 +88,12 @@ class NoteEditorReviewSerializer(serializers.ModelSerializer):
         return instance
 
 
+class NoteRatingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = NoteRating
+        fields = ['rating']
+
+
 class NoteTeacherViewSerializer(serializers.ModelSerializer):
     subject_name = serializers.CharField(source='subject.name', read_only=True)
     class_level_name = serializers.CharField(source='class_level.name', read_only=True)
@@ -103,7 +109,7 @@ class NoteTeacherViewSerializer(serializers.ModelSerializer):
         model = Note
         fields = [
             'id', 'title', 'description', 'pdf_url', 
-            'subject_name', 'class_level_name', 'status', 'status_display',
+            'subject_name', 'class_level_name', 'status_display',
             'content', 'editor_feedback', 'editor_name', 'reviewed_at', 'created_at'
         ]
 
@@ -141,7 +147,7 @@ class NotePublicViewSerializer(serializers.ModelSerializer):
         model = Note
         fields = [
             'id', 'title', 'description', 'content', 'featured_image_url', 
-            'subject_name', 'class_level_name', 'uploaded_by_name', 'views', 'published_at'
+            'subject_name', 'class_level_name', 'uploaded_by_name', 'views', 'published_at','average_rating', 'total_reviews'
         ]
 
     @extend_schema_field(serializers.CharField(allow_null=True))
@@ -235,7 +241,7 @@ class OldQuestionDetailSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = OldQuestion
-        fields = ['id', 'title', 'content', 'subject_name', 'class_level_name', 'exam_year', 'uploaded_by', 'uploaded_by_name', 'status', 'status_display', 'rejection_reason', 'created_at']
+        fields = ['id', 'title', 'content', 'subject_name', 'class_level_name', 'exam_year', 'uploaded_by', 'uploaded_by_name', 'status_display', 'rejection_reason', 'created_at']
 
 class OldQuestionUpdateSerializer(serializers.ModelSerializer):
     class Meta:

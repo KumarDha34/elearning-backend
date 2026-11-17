@@ -55,13 +55,13 @@ class TeacherProfileSerializer(serializers.ModelSerializer):
             # 'schools', 
             'school_names',
             'email', 'profile_image',
-            'rating_avg', 'content_limit', 'content_count', 'bio',
+             'content_limit', 'content_count', 'bio',
             'verification_document', 'status',
             'alternative_emails', 'alternative_phones',
             'followers_count', 'is_followed',
             'created_at', 'updated_at'
         ]
-        read_only_fields = ['rating_avg', 'content_limit', 'content_count', 'created_at', 'updated_at']
+        read_only_fields = ['content_limit', 'content_count', 'created_at', 'updated_at']
     
     @extend_schema_field(serializers.ListField(child=serializers.CharField()))
     def get_subject_names(self, obj):

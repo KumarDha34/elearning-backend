@@ -1,6 +1,8 @@
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
+from django.db.models import Avg
+from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils.translation import gettext_lazy as _
 from django_ckeditor_5.fields import CKEditor5Field 
 from apps.academics.models import Subject, ClassLevel, Chapter
@@ -26,6 +28,8 @@ class Note(models.Model):
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='notes', verbose_name=_("Subject"))
     class_level = models.ForeignKey(ClassLevel, on_delete=models.CASCADE, related_name='notes', verbose_name=_("Class Level"))
     chapter = models.ForeignKey(Chapter, on_delete=models.SET_NULL, null=True, blank=True, related_name='notes', verbose_name=_("Chapter"))
+    
+    
     
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -77,6 +81,11 @@ class Note(models.Model):
         verbose_name=_("Reviewed At")
     )
     
+    average_rating = models.DecimalField(
+        max_digits=3, decimal_places=2, default=0.00, verbose_name="Average Rating"
+    )
+    total_reviews = models.PositiveIntegerField(default=0, verbose_name="Total Ratings")
+    
     # ── Statistics & Timestamps ──
     views = models.PositiveIntegerField(default=0, verbose_name=_("Views"))
     created_at = models.DateTimeField(auto_now_add=True, verbose_name=_("Created At"))
@@ -106,7 +115,32 @@ class Note(models.Model):
         if self.status == self.Status.PUBLISHED and not self.published_at:
             self.published_at = timezone.now()
         super().save(*args, **kwargs)
+        
+        
+    def update_rating(self):
+    
+        avg = self.ratings.aggregate(Avg('rating'))['rating__avg']
+        
+        self.average_rating = round(avg, 2) if avg else 0.00
+        self.total_reviews = self.ratings.count()
+        self.save(update_fields=['average_rating', 'total_reviews'])
 
+class NoteRating(models.Model):
+    """Stores ONLY the star rating (1-5) left by a student on a Note."""
+    note = models.ForeignKey(Note, on_delete=models.CASCADE, related_name='ratings')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    
+    rating = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)],
+        help_text="Rating from 1 to 5"
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'note_ratings'
+        unique_together = ('note', 'user')
 
 class OldQuestion(models.Model):
     class Status(models.TextChoices):
