@@ -1,30 +1,23 @@
-from rest_framework.permissions import BasePermission, SAFE_METHODS
+from rest_framework.permissions import BasePermission
 
 
 class CanWriteBlog(BasePermission):
-    message = "Only instructors, editors, or admins can write blog posts."
+    """
+    Any authenticated, active user can write a blog post.
+    Students, instructors, editors, admins — all allowed.
+    """
+    message = "Authentication required to write blog posts."
 
     def has_permission(self, request, view):
         u = request.user
-        return (
-            u.is_authenticated
-            and u.is_active
-            and (u.is_instructor or u.is_editor or u.is_admin)
-        )
+        return u.is_authenticated and u.is_active
 
-
-class CanModerateBlog(BasePermission):
-    message = "Only editors or admins can moderate blog posts."
+class CanReviewBlog(BasePermission):
+    """
+    Only editors or admins can review (approve/reject) blog posts.
+    """
+    message = "Only editors or admins can review blog posts."
 
     def has_permission(self, request, view):
         u = request.user
         return u.is_authenticated and (u.is_editor or u.is_admin)
-
-
-class IsBlogAuthorOrModerator(BasePermission):
-    def has_object_permission(self, request, view, obj):
-        if request.method in SAFE_METHODS:
-            return True
-        if request.user.is_editor or request.user.is_admin:
-            return True
-        return obj.uploaded_by == request.user

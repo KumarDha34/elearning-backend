@@ -73,12 +73,13 @@ class BlogCategoryWriteSerializer(serializers.ModelSerializer):
 class BlogCommentSerializer(serializers.ModelSerializer):
     author = UserSerializer(read_only=True)
     replies_count = serializers.SerializerMethodField()
+    replies = serializers.SerializerMethodField() 
 
     class Meta:
         model = BlogComment
         fields = [
             'id', 'post', 'author', 'content', 'parent',
-            'replies_count', 'created_at',
+            'replies_count','replies', 'created_at',
         ]
         read_only_fields = ['author', 'created_at']
 
@@ -86,6 +87,21 @@ class BlogCommentSerializer(serializers.ModelSerializer):
     def get_replies_count(self, obj):
         # Uses prefetch to avoid N+1
         return getattr(obj, '_replies_count', obj.replies.filter(is_active=True).count())
+    @extend_schema_field(serializers.ListField(child=serializers.DictField())) 
+    def get_replies(self, obj):                           
+        replies = getattr(obj, '_prefetched_replies', None)
+        if replies is None:
+            replies = obj.replies.filter(is_active=True).select_related('author')
+        return [
+            {
+                'id': r.id,
+                'author': UserSerializer(r.author).data,
+                'content': r.content,
+                'parent': r.parent_id,
+                'created_at': r.created_at,
+            }
+            for r in replies
+        ]
 
 
 class BlogCommentWriteSerializer(serializers.ModelSerializer):
@@ -97,6 +113,21 @@ class BlogCommentWriteSerializer(serializers.ModelSerializer):
         if not value or not value.strip():
             raise serializers.ValidationError("Comment cannot be empty.")
         return value.strip()
+
+    def validate(self, attrs):
+        parent = attrs.get('parent')
+        post = attrs.get('post')
+
+        if parent:
+            if parent.post_id != post.id:
+                raise serializers.ValidationError(
+                    {'parent': 'Parent comment belongs to a different post.'}
+                )
+            if parent.parent is not None:
+                raise serializers.ValidationError(
+                    {'parent': 'Cannot reply to a reply. Reply to the top-level comment.'}
+                )
+        return attrs
 
 
 # ============================================================================
@@ -113,7 +144,7 @@ class BlogPostListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'slug', 'description', 'featured_image',
             'author_name', 'category', 'category_name', 'tags',
-            'status', 'views', 'likes_count', 'comments_count',
+            'status','rejection_reason', 'views', 'likes_count', 'comments_count',
             'created_at', 'published_at',
         ]
 
@@ -181,15 +212,12 @@ class BlogPostWriteSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Category is inactive.")
         return value
 
+class BlogPostRejectSerializer(serializers.Serializer):
+    """Used by editors/admins to reject a published post."""
+    rejection_reason = serializers.CharField(required=True, allow_blank=False)
 
-class BlogPostStatusSerializer(serializers.Serializer):
-    """Used for status transitions (submit / approve / reject)."""
-    status = serializers.ChoiceField(choices=['pending', 'published', 'rejected'])
-    rejection_reason = serializers.CharField(required=False, allow_blank=True)
-
-    def validate(self, attrs):
-        if attrs['status'] == 'rejected' and not attrs.get('rejection_reason', '').strip():
-            raise serializers.ValidationError({
-                'rejection_reason': 'Rejection reason is required when rejecting a post.'
-            })
-        return attrs
+    def validate_rejection_reason(self, value):
+        value = (value or '').strip()
+        if not value:
+            raise serializers.ValidationError("Rejection reason is required.")
+        return value
