@@ -109,8 +109,8 @@ class NoteTeacherViewSerializer(serializers.ModelSerializer):
         model = Note
         fields = [
             'id', 'title', 'description', 'pdf_url', 
-            'subject_name', 'class_level_name', 'status_display',
-            'content', 'editor_feedback', 'editor_name', 'reviewed_at', 'created_at'
+            'subject_name', 'class_level_name', 'status', 'status_display',
+            'content', 'editor_feedback', 'editor_name','average_rating', 'total_reviews', 'reviewed_at', 'created_at'
         ]
 
     @extend_schema_field(serializers.CharField(allow_null=True))
@@ -147,7 +147,7 @@ class NotePublicViewSerializer(serializers.ModelSerializer):
         model = Note
         fields = [
             'id', 'title', 'description', 'content', 'featured_image_url', 
-            'subject_name', 'class_level_name', 'uploaded_by_name', 'views', 'published_at','average_rating', 'total_reviews'
+            'subject_name', 'class_level_name', 'status' 'uploaded_by_name', 'views', 'published_at','average_rating', 'total_reviews'
         ]
 
     @extend_schema_field(serializers.CharField(allow_null=True))
