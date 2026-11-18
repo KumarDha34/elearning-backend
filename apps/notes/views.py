@@ -12,7 +12,7 @@ from .models import Note, OldQuestion, NoteRating
 from .serializers import *
 from .permissions import IsVerifiedTeacherOrAdmin, IsAdminOrEditor
 from .throttles import TeacherWeeklyUploadThrottle
-
+from .cache_service import increment_view_count, get_view_count
 # ============================================================================
 # NOTE VIEWS (TWO-PHASE WORKFLOW)
 # ============================================================================
@@ -187,7 +187,8 @@ class NotePublicDetailView(APIView):
             return Response({'error': 'Note not found or not published.'}, status=status.HTTP_404_NOT_FOUND)
             
         if note.status == Note.Status.PUBLISHED:
-            note.increment_views()
+            increment_view_count(note.id)
+            note.views=get_view_count(note.id)
             
         serializer = NotePublicViewSerializer(note, context={'request': request})
         return Response(serializer.data)

@@ -147,7 +147,7 @@ class NotePublicViewSerializer(serializers.ModelSerializer):
         model = Note
         fields = [
             'id', 'title', 'description', 'content', 'featured_image_url', 
-            'subject_name', 'class_level_name', 'status' 'uploaded_by_name', 'views', 'published_at','average_rating', 'total_reviews'
+            'subject_name', 'class_level_name', 'status', 'uploaded_by_name', 'views', 'published_at','average_rating', 'total_reviews'
         ]
 
     @extend_schema_field(serializers.CharField(allow_null=True))
