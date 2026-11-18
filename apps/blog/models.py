@@ -31,8 +31,6 @@ class BlogCategory(models.Model):
 
 class BlogPost(models.Model):
     class Status(models.TextChoices):
-        DRAFT = 'draft', _('Draft')
-        PENDING = 'pending', _('Pending Review')
         PUBLISHED = 'published', _('Published')
         REJECTED = 'rejected', _('Rejected')
 
@@ -65,7 +63,7 @@ class BlogPost(models.Model):
     status = models.CharField(
         max_length=20,
         choices=Status.choices,
-        default=Status.DRAFT,
+        default=Status.PUBLISHED,
         verbose_name=_('Status'),
     )
     rejection_reason = models.TextField(blank=True, verbose_name=_('Rejection Reason'))

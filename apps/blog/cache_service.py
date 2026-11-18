@@ -1,7 +1,7 @@
 import logging
 from django.core.cache import cache
 from django.db.models import F
-from .models import BlogPost
+from .models import BlogPost, BlogLike
 
 logger = logging.getLogger(__name__)
 
@@ -11,18 +11,28 @@ LIKE_COUNT_TTL = 300  # 5 minutes
 VIEW_COUNT_KEY = 'blog:views_count:{post_id}'
 
 
+# ============================================================================
+# LIKE COUNT
+# ============================================================================
+
 def get_like_count(post_id: int) -> int:
-    """Read like count. Falls back to DB if Redis is down."""
+    """
+    Read like count.
+
+    Source of truth: DB `BlogPost.likes_count` (kept in sync with BlogLike table).
+    Redis is just a read cache. If Redis is down, read from DB.
+    """
+    key = LIKE_COUNT_KEY.format(post_id=post_id)
+
     try:
-        key = LIKE_COUNT_KEY.format(post_id=post_id)
-        count = cache.get(key)
-        if count is not None:
-            return count
+        cached = cache.get(key)
+        if cached is not None:
+            return int(cached)
     except Exception as e:
         logger.warning(f"Redis GET failed for likes_count:{post_id}: {e}")
 
     # Fallback: DB
-    count = (
+    db_count = (
         BlogPost.objects
         .filter(pk=post_id)
         .values_list('likes_count', flat=True)
@@ -30,97 +40,130 @@ def get_like_count(post_id: int) -> int:
     ) or 0
 
     try:
-        cache.set(LIKE_COUNT_KEY.format(post_id=post_id), count, timeout=LIKE_COUNT_TTL)
+        cache.set(key, db_count, timeout=LIKE_COUNT_TTL)
     except Exception:
-        pass  # Redis still down, ignore
-    return count
+        pass
+
+    return db_count
 
 
 def increment_like_count(post_id: int) -> int:
-    """Atomically increment. Falls back to DB if Redis is down."""
-    key = LIKE_COUNT_KEY.format(post_id=post_id)
+    """
+    Increment like count.
+
+    1. Atomically increment DB (source of truth).
+    2. Sync Redis cache with the new DB value.
+    3. Return the new DB value.
+    """
+    # Step 1: DB increment (atomic)
+    BlogPost.objects.filter(pk=post_id).update(likes_count=F('likes_count') + 1)
+
+    # Step 2: Read the new DB value
+    db_count = (
+        BlogPost.objects
+        .filter(pk=post_id)
+        .values_list('likes_count', flat=True)
+        .first()
+    ) or 0
+
+    # Step 3: Sync Redis cache
     try:
-        return cache.incr(key, 1)
-    except ValueError:
-        current = get_like_count(post_id)
-        new_val = current + 1
-        try:
-            cache.set(key, new_val, timeout=LIKE_COUNT_TTL)
-        except Exception:
-            pass
-        return new_val
+        cache.set(LIKE_COUNT_KEY.format(post_id=post_id), db_count, timeout=LIKE_COUNT_TTL)
     except Exception as e:
-        logger.warning(f"Redis INCR failed for likes_count:{post_id}: {e}")
-        # Fallback: DB
-        BlogPost.objects.filter(pk=post_id).update(likes_count=F('likes_count') + 1)
-        return BlogPost.objects.filter(pk=post_id).values_list('likes_count', flat=True).first() or 0
+        logger.warning(f"Redis SET failed for likes_count:{post_id}: {e}")
+
+    return db_count
 
 
 def decrement_like_count(post_id: int) -> int:
-    """Atomically decrement. Falls back to DB if Redis is down."""
-    key = LIKE_COUNT_KEY.format(post_id=post_id)
+    """
+    Decrement like count.
+
+    1. Atomically decrement DB (guard against negative).
+    2. Sync Redis cache with the new DB value.
+    3. Return the new DB value.
+    """
+    # Step 1: DB decrement (atomic, guarded)
+    BlogPost.objects.filter(pk=post_id, likes_count__gt=0).update(
+        likes_count=F('likes_count') - 1
+    )
+
+    # Step 2: Read the new DB value
+    db_count = (
+        BlogPost.objects
+        .filter(pk=post_id)
+        .values_list('likes_count', flat=True)
+        .first()
+    ) or 0
+
+    # Step 3: Sync Redis cache
     try:
-        new_val = cache.decr(key, 1)
-        if new_val < 0:
-            cache.set(key, 0, timeout=LIKE_COUNT_TTL)
-            return 0
-        return new_val
-    except ValueError:
-        current = get_like_count(post_id)
-        new_val = max(0, current - 1)
-        try:
-            cache.set(key, new_val, timeout=LIKE_COUNT_TTL)
-        except Exception:
-            pass
-        return new_val
+        cache.set(LIKE_COUNT_KEY.format(post_id=post_id), db_count, timeout=LIKE_COUNT_TTL)
     except Exception as e:
-        logger.warning(f"Redis DECR failed for likes_count:{post_id}: {e}")
-        # Fallback: DB
-        BlogPost.objects.filter(pk=post_id, likes_count__gt=0).update(
-            likes_count=F('likes_count') - 1
-        )
-        return BlogPost.objects.filter(pk=post_id).values_list('likes_count', flat=True).first() or 0
+        logger.warning(f"Redis SET failed for likes_count:{post_id}: {e}")
+
+    return db_count
 
 
 def invalidate_like_count(post_id: int) -> None:
+    """Delete the cached like count. Next read will fetch from DB."""
     try:
         cache.delete(LIKE_COUNT_KEY.format(post_id=post_id))
     except Exception:
         pass
 
 
+# ============================================================================
+# VIEW COUNT
+# ============================================================================
+
 def increment_view_count(post_id: int) -> int:
-    """Fast view increment. Falls back to DB if Redis is down."""
-    key = VIEW_COUNT_KEY.format(post_id=post_id)
+    """
+    Increment view count.
+
+    Same pattern as likes: DB is source of truth, Redis is cache.
+    """
+    # Step 1: DB increment
+    BlogPost.objects.filter(pk=post_id).update(views=F('views') + 1)
+
+    # Step 2: Read the new DB value
+    db_count = (
+        BlogPost.objects
+        .filter(pk=post_id)
+        .values_list('views', flat=True)
+        .first()
+    ) or 0
+
+    # Step 3: Sync Redis
     try:
-        return cache.incr(key, 1)
-    except ValueError:
-        current = BlogPost.objects.filter(pk=post_id).values_list('views', flat=True).first() or 0
-        new_val = current + 1
-        try:
-            cache.set(key, new_val, timeout=None)
-        except Exception:
-            pass
-        return new_val
+        cache.set(VIEW_COUNT_KEY.format(post_id=post_id), db_count, timeout=None)
     except Exception as e:
-        logger.warning(f"Redis INCR (views) failed for post {post_id}: {e}")
-        # Fallback: DB
-        BlogPost.objects.filter(pk=post_id).update(views=F('views') + 1)
-        return BlogPost.objects.filter(pk=post_id).values_list('views', flat=True).first() or 0
+        logger.warning(f"Redis SET failed for views:{post_id}: {e}")
+
+    return db_count
 
 
 def get_view_count(post_id: int) -> int:
-    """Read views. Falls back to DB if Redis is down."""
+    """Read view count. Redis cache first, DB fallback."""
     key = VIEW_COUNT_KEY.format(post_id=post_id)
+
     try:
-        count = cache.get(key)
-        if count is None:
-            count = BlogPost.objects.filter(pk=post_id).values_list('views', flat=True).first() or 0
-            try:
-                cache.set(key, count, timeout=None)
-            except Exception:
-                pass
-        return count
+        cached = cache.get(key)
+        if cached is not None:
+            return int(cached)
     except Exception as e:
-        logger.warning(f"Redis GET (views) failed for post {post_id}: {e}")
-        return BlogPost.objects.filter(pk=post_id).values_list('views', flat=True).first() or 0
+        logger.warning(f"Redis GET failed for views:{post_id}: {e}")
+
+    db_count = (
+        BlogPost.objects
+        .filter(pk=post_id)
+        .values_list('views', flat=True)
+        .first()
+    ) or 0
+
+    try:
+        cache.set(key, db_count, timeout=None)
+    except Exception:
+        pass
+
+    return db_count
