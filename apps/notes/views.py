@@ -109,7 +109,7 @@ class NoteRateView(APIView):
         
         return Response(
             {'message': 'Rating submitted successfully.', 'average_rating': note.average_rating, 'total_reviews': note.total_reviews},
-            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
+            status=status.HTTP_201_CREATED if created else status.HTTP_201_OK
         )
 
 
@@ -136,12 +136,13 @@ class NoteStatusListView(APIView):
     serializer_class = NoteTeacherViewSerializer
 
     @extend_schema(summary="List Notes by Status", responses={200: NoteTeacherViewSerializer(many=True)})
-    def get(self, request, status):
+    def get(self, request, note_status):
         valid_statuses = [choice[0] for choice in Note.Status.choices]
         if status not in valid_statuses:
             return Response({'error': 'Invalid status'}, status=status.HTTP_400_BAD_REQUEST)
 
         user = request.user
+        notes = Note.objects.filter(status=note_status)
         
         if user.role in ['admin', 'editor']:
             notes = Note.objects.filter(status=status).order_by('-created_at')
@@ -271,6 +272,7 @@ class NoteRegisterEngagementView(APIView):
         note = get_object_or_404(Note, pk=pk, status=Note.Status.PUBLISHED)
         serializer = EngagementPayloadSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+
         
         dwell_time = serializer.validated_data['dwell_time_seconds']
         scroll_depth = serializer.validated_data['scroll_depth_percentage']
@@ -289,6 +291,7 @@ class NoteRegisterEngagementView(APIView):
         view_record, created = NoteViewRecord.objects.get_or_create(
             note=note,
             user=request.user
+            
         )
 
         if created:

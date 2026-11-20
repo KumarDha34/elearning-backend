@@ -126,6 +126,7 @@ class NoteViewRecord(models.Model):
     note = models.ForeignKey(Note, on_delete=models.CASCADE, related_name='view_records')
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
+    
 
     class Meta:
         db_table = 'note_view_records'
