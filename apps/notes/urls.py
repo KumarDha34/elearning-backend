@@ -34,18 +34,10 @@ urlpatterns = [
     # OLD QUESTIONS WORKFLOW
     # ========================================================================
     
-    # 1. Public Display
     path('old-questions/', views.OldQuestionListView.as_view(), name='old-question-list'),
     path('old-questions/<int:pk>/', views.OldQuestionDetailView.as_view(), name='old-question-detail'),
     
-    # 2. Teacher Actions
     path('old-questions/create/', views.OldQuestionCreateView.as_view(), name='old-question-create'),
-    path('old-questions/my-questions/', views.MyOldQuestionsView.as_view(), name='old-question-my'),
     path('old-questions/<int:pk>/update/', views.OldQuestionUpdateView.as_view(), name='old-question-update'),
     path('old-questions/<int:pk>/delete/', views.OldQuestionDeleteView.as_view(), name='old-question-delete'),
-    path('old-questions/<int:pk>/resubmit/', views.OldQuestionResubmitView.as_view(), name='old-question-resubmit'),
-    path('old-questions/<int:pk>/reject-info/', views.OldQuestionRejectInfoView.as_view(), name='old-question-reject-info'),
-    
-    # 3. Admin Actions
-    path('old-questions/<int:pk>/approve/', views.OldQuestionApprovalView.as_view(), name='old-question-approve'),
 ]

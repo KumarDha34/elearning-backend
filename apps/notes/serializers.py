@@ -189,84 +189,80 @@ class NoteTeacherUpdateSerializer(serializers.ModelSerializer):
         instance.save()
         return instance
 
-# OLD QUESTION SERIALIZERS
+# Old Question serializers
 class OldQuestionCreateSerializer(serializers.ModelSerializer):
+    """Used by Admins/Editors to upload a new old question paper."""
+    
     class Meta:
         model = OldQuestion
-        fields = ['title', 'content', 'subject', 'class_level', 'exam_year']
-    
+        fields = ['id', 'title', 'content', 'subject', 'class_level', 'exam_year']
+
+    def validate_exam_year(self, value):
+        current_year = timezone.now().year
+        if value < 1900 or value > current_year:
+            raise serializers.ValidationError(f"Exam year must be between 1900 and {current_year}.")
+        return value
+
     def validate_content(self, value):
         if not value:
-            return value
-            
+            raise serializers.ValidationError("Content cannot be empty.")
+        
         value = sanitize_ckeditor_html(value)
-
+        
         if value.strip() in ['', '<p><br></p>', '<p>&nbsp;</p>']:
-            raise serializers.ValidationError("Question content cannot be empty")
+            raise serializers.ValidationError("Content cannot be empty.")
+            
         plain_text = re.sub(r'<[^>]+>', '', value).strip()
         if len(plain_text) < 10:
-            raise serializers.ValidationError("Question must have at least 10 characters")
+            raise serializers.ValidationError("Question content must have at least 10 characters of text.")
         return value
-    
-    def validate(self, data):
-        user = self.context['request'].user
-        if not hasattr(user, 'teacher_profile'):
-            raise serializers.ValidationError({'error': 'Only teachers can upload old questions.'})
-        if not user.is_verified_teacher:
-            raise serializers.ValidationError({'error': 'Teacher account must be verified to upload old questions.'})
-        return data
+
 
 class OldQuestionListSerializer(serializers.ModelSerializer):
-    subject_name = serializers.CharField(source='subject.name')
-    class_level_name = serializers.CharField(source='class_level.name')
-    uploaded_by_name = serializers.CharField(source='uploaded_by.get_full_name')
+    """Used for the list view (Student side)."""
+    subject_name = serializers.CharField(source='subject.name', read_only=True)
+    class_level_name = serializers.CharField(source='class_level.name', read_only=True)
+    uploaded_by_name = serializers.CharField(source='uploaded_by.full_name', read_only=True)
     content_preview = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = OldQuestion
-        fields = ['id', 'title', 'content_preview', 'subject_name', 'class_level_name', 'exam_year', 'uploaded_by_name', 'status', 'created_at']
+        fields = [
+            'id', 'title', 'content_preview', 'subject_name', 
+            'class_level_name', 'exam_year', 'uploaded_by_name', 'created_at'
+        ]
 
-    @extend_schema_field(serializers.CharField())
     def get_content_preview(self, obj):
         if obj.content:
             plain_text = re.sub(r'<[^>]+>', '', obj.content)
             return plain_text[:150] + '...' if len(plain_text) > 150 else plain_text
         return ''
 
+
 class OldQuestionDetailSerializer(serializers.ModelSerializer):
-    subject_name = serializers.CharField(source='subject.name')
-    class_level_name = serializers.CharField(source='class_level.name')
-    uploaded_by_name = serializers.CharField(source='uploaded_by.get_full_name')
-    status_display = serializers.CharField(source='get_status_display')
-    
+    """Used for the detail view."""
+    subject_name = serializers.CharField(source='subject.name', read_only=True)
+    class_level_name = serializers.CharField(source='class_level.name', read_only=True)
+    uploaded_by_name = serializers.CharField(source='uploaded_by.full_name', read_only=True)
+
     class Meta:
         model = OldQuestion
-        fields = ['id', 'title', 'content', 'subject_name', 'class_level_name', 'exam_year', 'uploaded_by', 'uploaded_by_name', 'status_display', 'rejection_reason', 'created_at']
+        fields = [
+            'id', 'title', 'content', 'subject_name', 
+            'class_level_name', 'exam_year', 'uploaded_by_name', 'created_at'
+        ]
+
 
 class OldQuestionUpdateSerializer(serializers.ModelSerializer):
+    """Used by Admins/Editors to update an existing paper."""
     class Meta:
         model = OldQuestion
-        fields = ['title', 'content', 'subject', 'class_level', 'exam_year']
-    
+        fields = ['title', 'content', 'subject', 'class_level', 'exam_year', 'is_active']
+
     def validate_content(self, value):
         if not value:
             return value
-            
         value = sanitize_ckeditor_html(value)
-
         if value.strip() in ['', '<p><br></p>', '<p>&nbsp;</p>']:
-            raise serializers.ValidationError("Question content cannot be empty")
+            raise serializers.ValidationError("Content cannot be empty.")
         return value
-
-class OldQuestionApprovalSerializer(serializers.Serializer):
-    status = serializers.ChoiceField(choices=['approved', 'rejected'])
-    rejection_reason = serializers.CharField(required=False, allow_blank=True)
-    
-    def validate(self, data):
-        if data['status'] == 'rejected' and not data.get('rejection_reason'):
-            raise serializers.ValidationError({'rejection_reason': 'Reason required when rejecting'})
-        return data
-
-class OldQuestionResubmitSerializer(serializers.Serializer):
-    resubmit_note = serializers.CharField(required=False, allow_blank=True)
-    

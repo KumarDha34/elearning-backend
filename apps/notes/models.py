@@ -139,21 +139,39 @@ class NoteRating(models.Model):
         unique_together = ('note', 'user')
 
 class OldQuestion(models.Model):
-    class Status(models.TextChoices):
-        PENDING = 'pending', 'Pending'
-        PUBLISHED = 'published', 'Published'
-        REJECTED = 'rejected', 'Rejected'
-        
-    title = models.CharField(max_length=255)
-    content = CKEditor5Field(verbose_name="Question Content", config_name='default')
-    subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
-    class_level = models.ForeignKey(ClassLevel, on_delete=models.CASCADE)
-    exam_year = models.IntegerField()
-    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
-    rejection_reason = models.TextField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+
+    """
+        Old question paper uploaded by admin/editor
+        Visible immediately. Can be deactivated by admin/editor
+        No status field - is_active controls visibility
+    """
+
+    title=models.CharField(max_length=255, verbose_name=_("Title"))
+    content=CKEditor5Field(
+        verbose_name=_("Question Content"), config_name='default')
+
+    subject=models.ForeignKey(Subject,on_delete=models.CASCADE,related_name='old_questions',verbose_name=_("Subject"))
+    class_level=models.ForeignKey(ClassLevel,on_delete=models.CASCADE,related_name='old_questions',verbose_name=_("Class Level"))
+
+    exam_year=models.IntegerField(validators=[MinValueValidator(1900),MaxValueValidator(2100)],verbose_name=_("Exam Year"))
+
+    uploaded_by=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.CASCADE,related_name='uploaded_old_questions',verbose_name=_("Uploaded By"))
+    is_active=models.BooleanField(default=True,verbose_name=_("Is Active"))
+
+    created_at=models.DateTimeField(auto_now_add=True,verbose_name=_("Created At")  )
+    updated_at=models.DateTimeField(auto_now=True,verbose_name=_("Updated At")  )
 
     class Meta:
-        db_table = 'old_questions'
+        db_table='old_questions'
+        ordering=['-exam_year','created_at']
+        indexes=[
+            models.Index(fields=['is_active','exam_year']),
+            models.Index(fields=['is_active','class_level']),
+            models.Index(fields=['uploaded_by'])
+
+        ]
+        verbose_name=_("Old Question")
+        verbose_name_plural=_("Old Questions")
+
+    def __str__(self):
+        return f"{self.title} ({self.exam_year})"

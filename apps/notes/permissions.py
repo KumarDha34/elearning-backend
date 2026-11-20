@@ -20,3 +20,16 @@ class IsVerifiedTeacherOrAdmin(BasePermission):
         if user.role == 'admin': return True
         if not user.is_instructor or not hasattr(user, 'teacher_profile'): return False
         return user.teacher_profile.status == 'verified'
+
+class IsAdminOrEditor(BasePermission):
+    """
+    Allows access only to users with the 'admin' or 'editor' role.
+    """
+    message = "Only Admins or Editors can perform this action."
+
+    def has_permission(self, request, view):
+        return bool(
+            request.user and 
+            request.user.is_authenticated and 
+            request.user.role in ['admin', 'editor']
+        )

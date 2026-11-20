@@ -5,7 +5,7 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.html import strip_tags
-from drf_spectacular.utils import extend_schema, OpenApiResponse, inline_serializer
+from drf_spectacular.utils import extend_schema, OpenApiResponse, inline_serializer,OpenApiParameter,OpenApiTypes
 from rest_framework import serializers
 
 from .models import Note, OldQuestion, NoteRating 
@@ -255,128 +255,120 @@ class NoteTeacherUpdateView(APIView):
 # ============================================================================
 # OLD QUESTION VIEWS
 # ============================================================================
-
 class OldQuestionCreateView(APIView):
-    permission_classes = [IsVerifiedTeacherOrAdmin]
+    """POST /api/v1/notes/old-questions/create/"""
+    permission_classes = [IsAdminOrEditor]
     serializer_class = OldQuestionCreateSerializer
 
+    @extend_schema(
+        summary="Upload Old Question Paper (Admin/Editor only)",
+        request=OldQuestionCreateSerializer,
+        responses={201: OldQuestionDetailSerializer}
+    )
     def post(self, request):
-        serializer = OldQuestionCreateSerializer(data=request.data, context={'request': request})
+        serializer = OldQuestionCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        question = OldQuestion.objects.create(**serializer.validated_data, uploaded_by=request.user, status='pending')
-        return Response(OldQuestionDetailSerializer(question).data, status=status.HTTP_201_CREATED)
+        
+        question = serializer.save(uploaded_by=request.user)
+        
+        return Response(
+            OldQuestionDetailSerializer(question).data, 
+            status=status.HTTP_201_CREATED
+        )
+
 
 class OldQuestionListView(APIView):
-    permission_classes = [IsAuthenticated]
-    serializer_class = OldQuestionListSerializer 
-    
-    @extend_schema(summary="List Old Questions", operation_id="old_question_list")
-    def get(self, request):
-        queryset = OldQuestion.objects.filter(status='published')
-        filters = {}
-        if subject := request.query_params.get('subject'): filters['subject_id'] = subject
-        if class_level := request.query_params.get('class_level'): filters['class_level_id'] = class_level
-        if exam_year := request.query_params.get('exam_year'): filters['exam_year'] = exam_year
-        queryset = queryset.filter(**filters)
-        if search := request.query_params.get('search'): queryset = queryset.filter(title__icontains=search)
-        queryset = queryset.order_by('-exam_year', '-created_at')
-        return Response(OldQuestionListSerializer(queryset, many=True).data)
-
-class OldQuestionDetailView(APIView):
-    permission_classes = [IsAuthenticated]
-    serializer_class = OldQuestionDetailSerializer 
-    
-    @extend_schema(summary="Get Old Question Details", operation_id="old_question_detail")
-    def get(self, request, pk):
-        question = get_object_or_404(OldQuestion, pk=pk)
-        is_owner = question.uploaded_by == request.user if request.user.is_authenticated else False
-        if question.status != 'published' and not is_owner and request.user.role not in ['admin', 'editor']:
-            return Response({'error': 'Question not available'}, status=status.HTTP_404_NOT_FOUND)
-        if question.status == 'published':
-            question.views += 1
-            question.save(update_fields=['views'])
-        return Response(OldQuestionDetailSerializer(question).data)
-
-class OldQuestionUpdateView(APIView):
-    permission_classes = [IsAuthenticated]
-    serializer_class = OldQuestionUpdateSerializer
-
-    def patch(self, request, pk):
-        question = get_object_or_404(OldQuestion, pk=pk)
-        if not (request.user.role == 'admin' or (request.user.is_instructor and request.user.is_verified_teacher and question.uploaded_by == request.user)):
-            return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
-        if question.status != 'pending':
-            return Response({'error': f'Questions in {question.status} status cannot be updated'}, status=status.HTTP_400_BAD_REQUEST)
-        serializer = OldQuestionUpdateSerializer(question, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(OldQuestionDetailSerializer(question).data)
-
-class OldQuestionDeleteView(APIView):
-    permission_classes = [IsAuthenticated]
-    serializer_class = OldQuestionDetailSerializer
-
-    def delete(self, request, pk):
-        question = get_object_or_404(OldQuestion, pk=pk)
-        if not (request.user.role == 'admin' or (request.user.is_instructor and request.user.is_verified_teacher and question.uploaded_by == request.user)):
-            return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
-        if question.status != 'pending':
-            return Response({'error': f'Questions in {question.status} status cannot be deleted'}, status=status.HTTP_400_BAD_REQUEST)
-        question.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-class OldQuestionApprovalView(APIView):
-    permission_classes = [IsAdminUser]
-    serializer_class = OldQuestionApprovalSerializer
-
-    def post(self, request, pk):
-        question = get_object_or_404(OldQuestion, pk=pk)
-        if question.status != 'pending':
-            return Response({'error': f'Question is already {question.status}.'}, status=status.HTTP_400_BAD_REQUEST)
-        serializer = OldQuestionApprovalSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        if serializer.validated_data['status'] == 'approved':
-            question.status = 'published'
-            question.rejection_reason = ''
-        else:
-            question.status = 'rejected'
-            question.rejection_reason = serializer.validated_data.get('rejection_reason', '')
-        question.save()
-        return Response({'status': question.status, 'message': 'Question updated.', 'question': OldQuestionDetailSerializer(question).data})
-
-class OldQuestionResubmitView(APIView):
-    permission_classes = [IsAuthenticated]
-    serializer_class = OldQuestionResubmitSerializer
-
-    def post(self, request, pk):
-        question = get_object_or_404(OldQuestion, pk=pk)
-        if question.uploaded_by != request.user and request.user.role != 'admin':
-            return Response({'error': 'Only the creator or Admin can resubmit.'}, status=status.HTTP_403_FORBIDDEN)
-        if question.status != 'rejected':
-            return Response({'error': f'Only rejected questions can be resubmitted.'}, status=status.HTTP_400_BAD_REQUEST)
-        question.status = 'pending'
-        question.rejection_reason = ''
-        question.save()
-        return Response({'message': 'Question resubmitted successfully.', 'question': OldQuestionDetailSerializer(question).data})
-
-class MyOldQuestionsView(APIView):
+    """
+    GET /api/v1/notes/old-questions/
+    Visible to all authenticated users. Filters by subject and class_level.
+    """
     permission_classes = [IsAuthenticated]
     serializer_class = OldQuestionListSerializer
 
+    @extend_schema(
+        summary="List Old Questions",
+        parameters=[
+            OpenApiParameter('subject', OpenApiTypes.INT, description='Filter by Subject ID'),
+            OpenApiParameter('class_level', OpenApiTypes.INT, description='Filter by Class Level ID'),
+            OpenApiParameter('exam_year', OpenApiTypes.INT, description='Filter by Exam Year'),
+            OpenApiParameter('search', OpenApiTypes.STR, description='Search by title'),
+        ],
+        responses={200: OldQuestionListSerializer(many=True)}
+    )
     def get(self, request):
-        if not request.user.is_instructor:
-            return Response({'error': 'Only teachers can access this.'}, status=status.HTTP_403_FORBIDDEN)
-        questions = OldQuestion.objects.filter(uploaded_by=request.user).order_by('-exam_year', '-created_at')
-        return Response(OldQuestionListSerializer(questions, many=True).data)
+        queryset = OldQuestion.objects.filter(is_active=True).select_related(
+            'subject', 'class_level', 'uploaded_by'
+        )
+        subject_id = request.query_params.get('subject')
+        class_level_id = request.query_params.get('class_level')
+        exam_year = request.query_params.get('exam_year')
+        search = request.query_params.get('search')
 
-class OldQuestionRejectInfoView(APIView):
+        if subject_id:
+            queryset = queryset.filter(subject_id=subject_id)
+        if class_level_id:
+            queryset = queryset.filter(class_level_id=class_level_id)
+        if exam_year:
+            queryset = queryset.filter(exam_year=exam_year)
+        if search:
+            queryset = queryset.filter(title__icontains=search)
+
+        serializer = OldQuestionListSerializer(queryset, many=True)
+        return Response(serializer.data)
+
+
+class OldQuestionDetailView(APIView):
+    """GET /api/v1/notes/old-questions/{id}/"""
     permission_classes = [IsAuthenticated]
     serializer_class = OldQuestionDetailSerializer
 
+    @extend_schema(summary="View Single Old Question")
     def get(self, request, pk):
+        # Only allow viewing if active, or if user is admin/editor
+        queryset = OldQuestion.objects.select_related('subject', 'class_level', 'uploaded_by')
+        
+        if request.user.role in ['admin', 'editor']:
+            question = get_object_or_404(queryset, pk=pk)
+        else:
+            question = get_object_or_404(queryset, pk=pk, is_active=True)
+
+        return Response(OldQuestionDetailSerializer(question).data)
+
+
+class OldQuestionUpdateView(APIView):
+    """PATCH /api/v1/notes/old-questions/{id}/update/"""
+    permission_classes = [IsAdminOrEditor]
+    serializer_class = OldQuestionUpdateSerializer
+
+    @extend_schema(
+        summary="Update Old Question (Admin/Editor only)",
+        responses={200: OpenApiResponse(description="Old Question updated successfully")}
+    )
+    def patch(self, request, pk):
         question = get_object_or_404(OldQuestion, pk=pk)
-        if question.uploaded_by != request.user and request.user.role not in ['admin', 'editor']:
-            return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
-        if question.status != 'rejected':
-            return Response({'message': 'Not rejected.', 'status': question.status})
-        return Response({'id': question.id, 'title': question.title, 'status': question.status, 'rejection_reason': question.rejection_reason, 'can_resubmit': True, 'question': OldQuestionDetailSerializer(question).data})
+        
+        serializer = OldQuestionUpdateSerializer(question, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        
+        return Response({
+            "message": "Old Question updated successfully.",
+            "question": OldQuestionDetailSerializer(question).data
+        }, status=status.HTTP_200_OK)
+
+
+class OldQuestionDeleteView(APIView):
+    """DELETE /api/v1/notes/old-questions/{id}/delete/"""
+    permission_classes = [IsAdminOrEditor]
+
+    @extend_schema(summary="Deactivate Old Question (Admin/Editor only)")
+    def delete(self, request, pk):
+        question = get_object_or_404(OldQuestion, pk=pk)
+        
+        question.is_active = False
+        question.save(update_fields=['is_active'])
+        
+        return Response(
+            {'message': 'Old Question deactivated successfully.'}, 
+            status=status.HTTP_200_OK
+        )
