@@ -328,10 +328,10 @@ class OldQuestionCreateView(APIView):
         responses={201: OldQuestionDetailSerializer}
     )
     def post(self, request):
-        serializer = OldQuestionCreateSerializer(data=request.data)
+        serializer = OldQuestionCreateSerializer(data=request.data,context={'request': request})
         serializer.is_valid(raise_exception=True)
         
-        question = serializer.save(uploaded_by=request.user)
+        question = serializer.save(uploaded_by=request.user,is_active=True)
         
         return Response(
             OldQuestionDetailSerializer(question).data, 
@@ -358,9 +358,12 @@ class OldQuestionListView(APIView):
         responses={200: OldQuestionListSerializer(many=True)}
     )
     def get(self, request):
-        queryset = OldQuestion.objects.filter(is_active=True).select_related(
+        queryset = OldQuestion.objects.select_related(
             'subject', 'class_level', 'uploaded_by'
         )
+        if request.user.role not in ['admin', 'editor']:
+            queryset = queryset.filter(is_active=True)
+            
         subject_id = request.query_params.get('subject')
         class_level_id = request.query_params.get('class_level')
         exam_year = request.query_params.get('exam_year')
@@ -375,7 +378,13 @@ class OldQuestionListView(APIView):
         if search:
             queryset = queryset.filter(title__icontains=search)
 
-        serializer = OldQuestionListSerializer(queryset, many=True)
+        queryset = queryset.order_by('-exam_year', '-created_at')
+
+        serializer = OldQuestionListSerializer(
+            queryset,
+            many=True,
+            context={'request': request}
+        )
         return Response(serializer.data)
 
 
@@ -384,7 +393,10 @@ class OldQuestionDetailView(APIView):
     permission_classes = [IsAuthenticated]
     serializer_class = OldQuestionDetailSerializer
 
-    @extend_schema(summary="View Single Old Question")
+    @extend_schema(
+        summary="View Single Old Question",
+        responses={200: OldQuestionDetailSerializer}
+    )
     def get(self, request, pk):
         # Only allow viewing if active, or if user is admin/editor
         queryset = OldQuestion.objects.select_related('subject', 'class_level', 'uploaded_by')
@@ -394,7 +406,9 @@ class OldQuestionDetailView(APIView):
         else:
             question = get_object_or_404(queryset, pk=pk, is_active=True)
 
-        return Response(OldQuestionDetailSerializer(question).data)
+        serializer = OldQuestionDetailSerializer(question)
+
+        return Response(serializer.data)
 
 
 class OldQuestionUpdateView(APIView):
@@ -404,33 +418,53 @@ class OldQuestionUpdateView(APIView):
 
     @extend_schema(
         summary="Update Old Question (Admin/Editor only)",
-        responses={200: OpenApiResponse(description="Old Question updated successfully")}
+        request=OldQuestionUpdateSerializer,
+        responses={
+            200: inline_serializer(
+                name='OldQuestionUpdateResponse',
+                fields={
+                    'message': serializers.CharField(),
+                    'question': OldQuestionDetailSerializer()
+                }
+            )
+        }
     )
     def patch(self, request, pk):
         question = get_object_or_404(OldQuestion, pk=pk)
         
         serializer = OldQuestionUpdateSerializer(question, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
-        
+        updated_question = serializer.save()
+
         return Response({
             "message": "Old Question updated successfully.",
-            "question": OldQuestionDetailSerializer(question).data
+            "question": OldQuestionDetailSerializer(
+                updated_question
+            ).data
         }, status=status.HTTP_200_OK)
-
 
 class OldQuestionDeleteView(APIView):
     """DELETE /api/v1/notes/old-questions/{id}/delete/"""
+
     permission_classes = [IsAdminOrEditor]
 
-    @extend_schema(summary="Deactivate Old Question (Admin/Editor only)")
+    @extend_schema(
+        summary="Deactivate Old Question (Admin/Editor only)",
+        responses={
+            200: inline_serializer(
+                name='OldQuestionDeleteResponse',
+                fields={
+                    'message': serializers.CharField()
+                }
+            )
+        }
+    )
     def delete(self, request, pk):
         question = get_object_or_404(OldQuestion, pk=pk)
-        
         question.is_active = False
         question.save(update_fields=['is_active'])
-        
+
         return Response(
-            {'message': 'Old Question deactivated successfully.'}, 
+            {'message': 'Old Question deactivated successfully.'},
             status=status.HTTP_200_OK
         )

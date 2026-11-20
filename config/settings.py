@@ -273,7 +273,6 @@ SPECTACULAR_SETTINGS = {
         'SchoolType': 'apps.academics.models.School.SchoolType',
         'ClassLevelType': 'apps.academics.models.ClassLevel.LevelType',
         'NoteStatus': 'apps.notes.models.Note.Status',
-        'OldQuestionStatus': 'apps.notes.models.OldQuestion.Status',
         'ApprovalStatusEnum': ['approved', 'rejected'],
         'NoteStatusUpdateEnum': ['draft', 'pending', 'published'],
         'BlogPostStatus': 'apps.blog.models.BlogPost.Status',

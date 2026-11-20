@@ -239,13 +239,19 @@ class OldQuestionListSerializer(serializers.ModelSerializer):
         model = OldQuestion
         fields = [
             'id', 'title', 'content_preview', 'subject_name', 
-            'class_level_name', 'exam_year', 'uploaded_by_name', 'created_at'
+            'class_level_name', 'exam_year', 'uploaded_by_name','is_active', 'created_at'
         ]
-
-    def get_content_preview(self, obj):
+    @extend_schema_field(serializers.CharField())
+    def get_content_preview(self, obj) -> str:
         if obj.content:
-            plain_text = re.sub(r'<[^>]+>', '', obj.content)
-            return plain_text[:150] + '...' if len(plain_text) > 150 else plain_text
+            plain_text = strip_tags(obj.content).strip()
+
+            return (
+                plain_text[:150] + '...'
+                if len(plain_text) > 150
+                else plain_text
+            )
+
         return ''
 
 
@@ -259,7 +265,7 @@ class OldQuestionDetailSerializer(serializers.ModelSerializer):
         model = OldQuestion
         fields = [
             'id', 'title', 'content', 'subject_name', 
-            'class_level_name', 'exam_year', 'uploaded_by_name', 'created_at'
+            'class_level_name', 'exam_year', 'uploaded_by_name','is_active', 'created_at'
         ]
 
 
@@ -269,10 +275,28 @@ class OldQuestionUpdateSerializer(serializers.ModelSerializer):
         model = OldQuestion
         fields = ['title', 'content', 'subject', 'class_level', 'exam_year', 'is_active']
 
+    def validate_exam_year(self, value):
+        current_year = timezone.now().year
+
+        if value < 1900 or value > current_year:
+            raise serializers.ValidationError(
+                f"Exam year must be between 1900 and {current_year}."
+            )
+
+        return value
+
     def validate_content(self, value):
         if not value:
-            return value
+            raise serializers.ValidationError(
+                "Content cannot be empty."
+            )
+
         value = sanitize_ckeditor_html(value)
-        if value.strip() in ['', '<p><br></p>', '<p>&nbsp;</p>']:
-            raise serializers.ValidationError("Content cannot be empty.")
+        plain_text = strip_tags(value).strip()
+
+        if len(plain_text) < 10:
+            raise serializers.ValidationError(
+                "Question content must have at least 10 characters of text."
+            )
+
         return value
