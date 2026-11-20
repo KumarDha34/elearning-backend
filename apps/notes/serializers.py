@@ -100,7 +100,7 @@ class NoteTeacherViewSerializer(serializers.ModelSerializer):
     editor_name = serializers.CharField(source='reviewed_by.full_name', read_only=True)
     pdf_url = serializers.SerializerMethodField()
     status_display = serializers.CharField(source='get_status_display', read_only=True)
-    
+    uploaded_by_name = serializers.CharField(source='uploaded_by.full_name', read_only=True)
     editor_feedback = serializers.SerializerMethodField()
     content = serializers.SerializerMethodField()
     description = serializers.SerializerMethodField()
@@ -110,7 +110,7 @@ class NoteTeacherViewSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'description', 'pdf_url', 
             'subject_name', 'class_level_name', 'status', 'status_display',
-            'content', 'editor_feedback', 'editor_name','average_rating', 'total_reviews', 'reviewed_at', 'created_at'
+            'content', 'editor_feedback', 'editor_name', 'uploaded_by_name ','average_rating', 'total_reviews', 'reviewed_at', 'created_at'
         ]
 
     @extend_schema_field(serializers.CharField(allow_null=True))
