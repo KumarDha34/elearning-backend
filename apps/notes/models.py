@@ -121,6 +121,15 @@ class Note(models.Model):
         self.total_reviews = self.ratings.count()
         self.save(update_fields=['average_rating', 'total_reviews'])
 
+class NoteViewRecord(models.Model):
+    """Tracks unique, verified views to prevent spam."""
+    note = models.ForeignKey(Note, on_delete=models.CASCADE, related_name='view_records')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'note_view_records'
+        unique_together = ('note', 'user')
 class NoteRating(models.Model):
     """Stores ONLY the star rating (1-5) left by a student on a Note."""
     note = models.ForeignKey(Note, on_delete=models.CASCADE, related_name='ratings')

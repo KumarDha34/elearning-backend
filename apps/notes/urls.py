@@ -30,6 +30,8 @@ urlpatterns = [
     path('teacher/<int:pk>/update/', views.NoteTeacherUpdateView.as_view(), name='note-teacher-update'),
 
     path('<int:pk>/rate/', views.NoteRateView.as_view(), name='note-rate'),
+    
+    path('<int:pk>/register-view/', views.NoteRegisterEngagementView.as_view(), name='note-register-view'),
     # ========================================================================
     # OLD QUESTIONS WORKFLOW
     # ========================================================================

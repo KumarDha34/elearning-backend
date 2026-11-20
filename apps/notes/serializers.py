@@ -189,6 +189,16 @@ class NoteTeacherUpdateSerializer(serializers.ModelSerializer):
         instance.save()
         return instance
 
+# apps/notes/serializers.py
+
+class EngagementPayloadSerializer(serializers.Serializer):
+    dwell_time_seconds = serializers.IntegerField(
+        help_text="Time spent on the page (must be >= 30)"
+    )
+    scroll_depth_percentage = serializers.IntegerField(
+        help_text="Percentage of the page scrolled (must be >= 50)"
+    )
+
 # Old Question serializers
 class OldQuestionCreateSerializer(serializers.ModelSerializer):
     """Used by Admins/Editors to upload a new old question paper."""

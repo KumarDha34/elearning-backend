@@ -8,7 +8,7 @@ from django.utils.html import strip_tags
 from drf_spectacular.utils import extend_schema, OpenApiResponse, inline_serializer,OpenApiParameter,OpenApiTypes
 from rest_framework import serializers
 
-from .models import Note, OldQuestion, NoteRating 
+from .models import Note, OldQuestion, NoteRating, NoteViewRecord 
 from .serializers import *
 from .permissions import IsVerifiedTeacherOrAdmin, IsAdminOrEditor
 from .throttles import TeacherWeeklyUploadThrottle
@@ -186,9 +186,11 @@ class NotePublicDetailView(APIView):
         if note.status != Note.Status.PUBLISHED and request.user.role not in ['admin', 'editor']:
             return Response({'error': 'Note not found or not published.'}, status=status.HTTP_404_NOT_FOUND)
             
-        if note.status == Note.Status.PUBLISHED:
-            increment_view_count(note.id)
-            note.views=get_view_count(note.id)
+        # if note.status == Note.Status.PUBLISHED:
+        #     increment_view_count(note.id)
+        #     note.views=get_view_count(note.id)
+        
+        
             
         serializer = NotePublicViewSerializer(note, context={'request': request})
         return Response(serializer.data)
@@ -252,6 +254,63 @@ class NoteTeacherUpdateView(APIView):
         }, status=status.HTTP_200_OK)
 
 
+
+class NoteRegisterEngagementView(APIView):
+    """
+    POST /api/v1/notes/<id>/register-view/
+    Called by the frontend ONLY after the user stays for 30s and scrolls 50%.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Register a Verified View",
+        request=EngagementPayloadSerializer,
+        responses={200: OpenApiResponse(description="View registered successfully")}
+    )
+    def post(self, request, pk):
+        note = get_object_or_404(Note, pk=pk, status=Note.Status.PUBLISHED)
+        serializer = EngagementPayloadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        dwell_time = serializer.validated_data['dwell_time_seconds']
+        scroll_depth = serializer.validated_data['scroll_depth_percentage']
+        
+        if dwell_time < 30:
+            return Response(
+                {'error': 'Dwell time too short. Must be at least 30 seconds.'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if scroll_depth < 50:
+            return Response(
+                {'error': 'Scroll depth too low. Must scroll at least 50%.'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        #checks if user already viewes the note
+        view_record, created = NoteViewRecord.objects.get_or_create(
+            note=note,
+            user=request.user
+        )
+
+        if created:
+            # First time this user passed the gate for this note
+            note.increment_views() # Safely increments the DB and Redis if you use it
+            
+            # OPTIONAL: Award points to the student for reading
+            if hasattr(request.user, 'student_profile'):
+                student = request.user.student_profile
+                student.points_balance += 10
+                student.save(update_fields=['points_balance'])
+                
+            return Response(
+                {'message': 'View registered successfully!', 'views': note.views}, 
+                status=status.HTTP_201_CREATED
+            )
+        else:
+            # User already read this note previously
+            return Response(
+                {'message': 'View already registered.', 'views': note.views}, 
+                status=status.HTTP_200_OK
+            )
 # ============================================================================
 # OLD QUESTION VIEWS
 # ============================================================================
